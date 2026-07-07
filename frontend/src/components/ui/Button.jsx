@@ -3,11 +3,11 @@ import { motion } from 'framer-motion';
 import { cn } from '../../utils/cn';
 
 const variants = {
-  primary: 'bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800 shadow-md shadow-primary-500/20',
-  secondary: 'bg-secondary-600 text-white hover:bg-secondary-700 active:bg-secondary-800 shadow-md shadow-secondary-500/20',
-  outline: 'border border-dark-border text-dark-text hover:bg-dark-surface active:bg-slate-800',
-  ghost: 'text-dark-text hover:bg-dark-surface active:bg-slate-800',
-  danger: 'bg-red-500 text-white hover:bg-red-600 active:bg-red-700',
+  primary: 'bg-gradient-to-r from-primary-600 to-indigo-600 text-white hover:from-primary-500 hover:to-indigo-500 shadow-[0_4px_14px_rgba(99,102,241,0.3)] hover:shadow-[0_4px_20px_rgba(99,102,241,0.45)] border border-primary-500/25',
+  secondary: 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white hover:from-cyan-500 hover:to-blue-500 shadow-[0_4px_14px_rgba(6,182,212,0.3)] hover:shadow-[0_4px_20px_rgba(6,182,212,0.45)] border border-cyan-500/25',
+  outline: 'border border-white/10 bg-slate-900/40 text-dark-text hover:bg-slate-800/80 hover:border-white/20',
+  ghost: 'text-dark-textMuted hover:text-white hover:bg-white/5',
+  danger: 'bg-red-600 text-white hover:bg-red-500 active:bg-red-700 shadow-[0_4px_14px_rgba(239,68,68,0.3)]',
 };
 
 const sizes = {

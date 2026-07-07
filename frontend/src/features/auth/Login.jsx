@@ -13,7 +13,7 @@ export const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   
-  const { login } = useAuth();
+  const { login, demoLogin } = useAuth();
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
@@ -25,10 +25,15 @@ export const Login = () => {
       await login(email, password);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message || 'Failed to login. Try demo@trackcode.com / password');
+      setError(err.message || 'Failed to login. Try the Demo Login button below.');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleDemoLogin = () => {
+    demoLogin();
+    navigate('/dashboard');
   };
 
   return (
@@ -92,6 +97,23 @@ export const Login = () => {
               
               <Button type="submit" className="w-full" isLoading={isLoading}>
                 Sign In
+              </Button>
+
+              <div className="relative my-2">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-white/10" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-dark-surface/60 px-3 text-dark-textMuted">or</span>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                onClick={handleDemoLogin}
+                className="w-full bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600/30 hover:border-emerald-500/50"
+              >
+                🚀 Try Demo (No Login Required)
               </Button>
             </form>
             

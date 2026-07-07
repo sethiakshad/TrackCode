@@ -7,11 +7,17 @@ import { NotFound } from './routes/NotFound';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 
 // Features
+import { LandingPage } from './features/auth/LandingPage';
 import { Login } from './features/auth/Login';
 import { Register } from './features/auth/Register';
 import { OTPVerify } from './features/auth/OTPVerify';
 import { Dashboard } from './features/dashboard/Dashboard';
 import { Analytics } from './features/insights/Insights';
+import { GitHubInsights } from './features/github/GitHubInsights';
+import { ContestAnalysis } from './features/contest/ContestAnalysis';
+import { AICoach } from './features/aicoach/AICoach';
+import { FriendsLeaderboard } from './features/profile/FriendsLeaderboard';
+import { Settings } from './features/profile/Settings';
 
 function App() {
   return (
@@ -20,12 +26,10 @@ function App() {
         <BrowserRouter>
           <Routes>
             {/* Public Routes */}
+            <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/otp-verify" element={<OTPVerify />} />
-            
-            {/* Redirect root to dashboard for now */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
             {/* Protected Routes */}
             <Route 
@@ -37,6 +41,11 @@ function App() {
             >
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/analytics" element={<Analytics />} />
+              <Route path="/github" element={<GitHubInsights />} />
+              <Route path="/contest" element={<ContestAnalysis />} />
+              <Route path="/coach" element={<AICoach />} />
+              <Route path="/friends" element={<FriendsLeaderboard />} />
+              <Route path="/settings" element={<Settings />} />
             </Route>
 
             {/* 404 Route */}

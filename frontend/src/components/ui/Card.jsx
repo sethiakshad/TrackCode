@@ -12,7 +12,8 @@ export const Card = React.forwardRef(({ className, children, hoverEffect = false
     <Component
       ref={ref}
       className={cn(
-        'rounded-xl border border-dark-border bg-dark-surface/80 backdrop-blur-sm shadow-sm',
+        'rounded-xl border border-white/[0.06] bg-slate-900/50 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.5)] transition-all duration-300',
+        hoverEffect && 'hover:border-primary-500/30 hover:shadow-[0_8px_30px_rgba(99,102,241,0.15)]',
         className
       )}
       {...hoverProps}

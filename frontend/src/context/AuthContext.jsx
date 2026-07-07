@@ -45,8 +45,20 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('trackcode_token');
   };
 
+  const demoLogin = () => {
+    const demoUser = {
+      id: 'demo_001',
+      name: 'Demo Developer',
+      email: 'demo@trackcode.com',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=demo',
+    };
+    setUser(demoUser);
+    localStorage.setItem('trackcode_user', JSON.stringify(demoUser));
+    localStorage.setItem('trackcode_token', 'demo-token');
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout, demoLogin }}>
       {children}
     </AuthContext.Provider>
   );
