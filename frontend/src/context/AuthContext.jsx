@@ -8,53 +8,69 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check local storage for an existing session on mount
+    let isMounted = true;
+
     const checkSession = async () => {
       try {
-        const storedUser = localStorage.getItem('trackcode_user');
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
+        const sessionUser = await authService.getSessionUser();
+        if (isMounted) {
+          setUser(sessionUser);
         }
       } catch (error) {
-        console.error("Failed to restore session", error);
+        console.error('Failed to restore session', error);
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
+
     checkSession();
+
+    const {
+      data: { subscription },
+    } = authService.onAuthStateChange((nextUser) => {
+      if (!isMounted) return;
+      setUser(nextUser);
+      setIsLoading(false);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email, password) => {
     const data = await authService.login(email, password);
-    setUser(data.user);
-    localStorage.setItem('trackcode_user', JSON.stringify(data.user));
-    localStorage.setItem('trackcode_token', data.token);
+    if (data.user) {
+      setUser(data.user);
+    }
+    return data;
   };
 
   const register = async (name, email, password) => {
     const data = await authService.register(name, email, password);
-    setUser(data.user);
-    localStorage.setItem('trackcode_user', JSON.stringify(data.user));
-    localStorage.setItem('trackcode_token', data.token);
+    if (data.user) {
+      setUser(data.user);
+    }
+    return data;
   };
 
   const logout = async () => {
     await authService.logout();
     setUser(null);
-    localStorage.removeItem('trackcode_user');
-    localStorage.removeItem('trackcode_token');
   };
 
   const demoLogin = () => {
     const demoUser = {
       id: 'demo_001',
       name: 'Demo Developer',
+      username: 'demo_developer',
       email: 'demo@trackcode.com',
       avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=demo',
     };
     setUser(demoUser);
-    localStorage.setItem('trackcode_user', JSON.stringify(demoUser));
-    localStorage.setItem('trackcode_token', 'demo-token');
   };
 
   return (

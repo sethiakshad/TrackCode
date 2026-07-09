@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -13,6 +13,7 @@ export const Register = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   
   const { register } = useAuth();
   const navigate = useNavigate();
@@ -21,11 +22,24 @@ export const Register = () => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setSuccessMessage('');
     
     try {
-      await register(name, email, password);
-      // Wait, normally we'd navigate to OTP verification here. Let's redirect to OTP.
-      navigate('/otp-verify', { state: { email } });
+      const result = await register(name, email);
+
+      if (result.requiresOtpVerification) {
+        navigate('/otp-verify', {
+          state: {
+            email,
+            name,
+            mode: 'register',
+          },
+        });
+        return;
+      }
+
+      setSuccessMessage('Account created successfully. Redirecting to your dashboard...');
+      navigate('/dashboard');
     } catch (err) {
       setError(err.message || 'Failed to register.');
     } finally {
@@ -55,6 +69,11 @@ export const Register = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleRegister} className="space-y-4">
+              {successMessage && (
+                <div className="rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-400">
+                  {successMessage}
+                </div>
+              )}
               {error && (
                 <div className="rounded-md bg-red-500/10 p-3 text-sm text-red-500 border border-red-500/20">
                   {error}
@@ -99,9 +118,9 @@ export const Register = () => {
             
             <div className="mt-6 text-center text-sm text-dark-textMuted">
               Already have an account?{' '}
-              <a href="/login" className="font-medium text-primary-400 hover:text-primary-300">
+              <Link to="/login" className="font-medium text-primary-400 hover:text-primary-300">
                 Sign in
-              </a>
+              </Link>
             </div>
           </CardContent>
         </Card>

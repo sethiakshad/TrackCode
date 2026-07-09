@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { authService } from './AuthServices';
 import { Button } from '../../components/ui/Button';
@@ -14,7 +14,11 @@ export const OTPVerify = () => {
   
   const navigate = useNavigate();
   const location = useLocation();
-  const email = location.state?.email;
+  const pendingRegistration = useMemo(
+    () => location.state || authService.getPendingRegistration(),
+    [location.state]
+  );
+  const email = pendingRegistration?.email;
 
   if (!email) {
     return <Navigate to="/register" replace />;
@@ -27,9 +31,9 @@ export const OTPVerify = () => {
     
     try {
       await authService.verifyOTP(email, otp);
-      navigate('/dashboard');
+      navigate(pendingRegistration?.from?.pathname || '/dashboard');
     } catch (err) {
-      setError(err.message || 'Invalid OTP. Try 123456');
+      setError(err.message || 'Invalid or expired OTP. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -77,13 +81,6 @@ export const OTPVerify = () => {
                 Verify Code
               </Button>
             </form>
-            
-            <div className="mt-6 text-center text-sm text-dark-textMuted">
-              Didn't receive the code?{' '}
-              <button type="button" className="font-medium text-cyan-400 hover:text-cyan-300">
-                Click to resend
-              </button>
-            </div>
           </CardContent>
         </Card>
       </motion.div>

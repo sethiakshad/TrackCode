@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -12,20 +12,38 @@ export const Login = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   
   const { login, demoLogin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.state?.message) {
+      setSuccessMessage(location.state.message);
+    }
+  }, [location.state]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setSuccessMessage('');
     
     try {
-      await login(email, password);
-      navigate('/dashboard');
+      const result = await login(email, password);
+      if (result.requiresOtpVerification) {
+        navigate('/otp-verify', {
+          state: {
+            email,
+            password,
+            mode: 'login',
+            from: location.state?.from,
+          },
+        });
+      }
     } catch (err) {
-      setError(err.message || 'Failed to login. Try the Demo Login button below.');
+      setError(err.message || 'Failed to send the verification code. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -54,10 +72,15 @@ export const Login = () => {
               <span className="text-2xl font-bold text-white">T</span>
             </div>
             <CardTitle className="text-2xl">Welcome back</CardTitle>
-            <CardDescription>Enter your credentials to access your dashboard</CardDescription>
+            <CardDescription>Enter your email and password to receive a one-time verification code</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
+              {successMessage && (
+                <div className="rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-400">
+                  {successMessage}
+                </div>
+              )}
               {error && (
                 <div className="rounded-md bg-red-500/10 p-3 text-sm text-red-500 border border-red-500/20">
                   {error}
@@ -67,7 +90,7 @@ export const Login = () => {
               <div className="space-y-2">
                 <Input
                   type="email"
-                  placeholder="Email address (demo@trackcode.com)"
+                  placeholder="Email address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   icon={<Mail className="h-5 w-5" />}
@@ -77,22 +100,12 @@ export const Login = () => {
               <div className="space-y-2">
                 <Input
                   type="password"
-                  placeholder="Password (password)"
+                  placeholder="Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   icon={<Lock className="h-5 w-5" />}
                   required
                 />
-              </div>
-              
-              <div className="flex items-center justify-between text-sm">
-                <label className="flex items-center space-x-2 cursor-pointer text-dark-textMuted hover:text-white transition-colors">
-                  <input type="checkbox" className="rounded border-dark-border bg-dark-bg text-primary-500 focus:ring-primary-500" />
-                  <span>Remember me</span>
-                </label>
-                <a href="#" className="text-primary-400 hover:text-primary-300 transition-colors">
-                  Forgot password?
-                </a>
               </div>
               
               <Button type="submit" className="w-full" isLoading={isLoading}>
@@ -119,9 +132,9 @@ export const Login = () => {
             
             <div className="mt-6 text-center text-sm text-dark-textMuted">
               Don't have an account?{' '}
-              <a href="#" className="font-medium text-primary-400 hover:text-primary-300">
+              <Link to="/register" className="font-medium text-primary-400 hover:text-primary-300">
                 Sign up
-              </a>
+              </Link>
             </div>
           </CardContent>
         </Card>
