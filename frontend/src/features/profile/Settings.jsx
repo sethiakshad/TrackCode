@@ -3,7 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useAuth } from '../../context/AuthContext';
-import { User, Bell, Shield, Key, HelpCircle, Save, Check } from 'lucide-react';
+import { User, Bell, Shield, Key, HelpCircle, Save, Check, Link2, Unlink } from 'lucide-react';
+import { useLeetCode } from '../../context/LeetCodeContext';
+import { useGitHub } from '../../context/GitHubContext';
+import { ConnectLeetCodeModal } from '../../components/ui/ConnectLeetCodeModal';
+import { ConnectGitHubModal } from '../../components/ui/ConnectGitHubModal';
 
 const Github = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -14,13 +18,15 @@ const Github = (props) => (
 
 export const Settings = () => {
   const { user } = useAuth();
+  const { profile: lcProfile, isConnected: isConnectedLeetCode, connectLeetCode, disconnect: disconnectLeetCode } = useLeetCode();
+  const { profile: ghProfile, isConnected: isConnectedGitHub, connectGitHub, disconnect: disconnectGitHub } = useGitHub();
   const [name, setName] = useState(user?.name || 'Developer');
   const [email, setEmail] = useState(user?.email || 'demo@trackcode.com');
-  const [lcUsername, setLcUsername] = useState('leetcode_dev');
   const [cfUsername, setCfUsername] = useState('cf_master');
-  const [ghUsername, setGhUsername] = useState('github_coder');
   
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showLCModal, setShowLCModal] = useState(false);
+  const [showGHModal, setShowGHModal] = useState(false);
 
   const handleSave = (e) => {
     e.preventDefault();
@@ -71,16 +77,68 @@ export const Settings = () => {
             <CardDescription>Handles used to scrape competitive programming metrics & commits.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-dark-textMuted">GitHub Username</label>
-                <Input type="text" value={ghUsername} onChange={(e) => setGhUsername(e.target.value)} />
+            <div className="grid gap-6 sm:grid-cols-2">
+              <div className="space-y-1.5 text-left">
+                <label className="text-xs font-semibold text-dark-textMuted">GitHub Status</label>
+                {isConnectedGitHub ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center h-10 w-full rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-sm text-emerald-400">
+                      <span className="font-semibold truncate">Connected: {ghProfile.username}</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={disconnectGitHub}
+                      className="h-10 w-full justify-center text-red-400 border-red-500/20 hover:bg-red-500/10 hover:text-red-300"
+                    >
+                      <Unlink className="h-4 w-4 mr-2" />
+                      Disconnect GitHub
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowGHModal(true)}
+                    className="h-10 w-full justify-center border-dashed"
+                  >
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Connect GitHub
+                  </Button>
+                )}
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-dark-textMuted">LeetCode Username</label>
-                <Input type="text" value={lcUsername} onChange={(e) => setLcUsername(e.target.value)} />
+
+              <div className="space-y-1.5 text-left">
+                <label className="text-xs font-semibold text-dark-textMuted">LeetCode Status</label>
+                {isConnectedLeetCode ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center h-10 w-full rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-sm text-emerald-400">
+                      <span className="font-semibold truncate">Connected: {lcProfile.username}</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={disconnectLeetCode}
+                      className="h-10 w-full justify-center text-red-400 border-red-500/20 hover:bg-red-500/10 hover:text-red-300"
+                    >
+                      <Unlink className="h-4 w-4 mr-2" />
+                      Disconnect LeetCode
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowLCModal(true)}
+                    className="h-10 w-full justify-center border-dashed"
+                  >
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Connect LeetCode
+                  </Button>
+                )}
               </div>
-              <div className="space-y-1.5">
+
+              <div className="space-y-1.5 text-left sm:col-span-2">
                 <label className="text-xs font-semibold text-dark-textMuted">Codeforces Handle</label>
                 <Input type="text" value={cfUsername} onChange={(e) => setCfUsername(e.target.value)} />
               </div>
@@ -127,6 +185,17 @@ export const Settings = () => {
           </Button>
         </div>
       </form>
+
+      <ConnectLeetCodeModal
+        isOpen={showLCModal}
+        onClose={() => setShowLCModal(false)}
+        onConfirm={connectLeetCode}
+      />
+      <ConnectGitHubModal
+        isOpen={showGHModal}
+        onClose={() => setShowGHModal(false)}
+        onConfirm={connectGitHub}
+      />
     </div>
   );
 };

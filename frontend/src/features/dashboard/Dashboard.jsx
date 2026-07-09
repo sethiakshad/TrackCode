@@ -3,10 +3,14 @@ import { useAuth } from '../../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Shimmer } from '../../components/ui/Shimmer';
 import { Button } from '../../components/ui/Button';
-import { Trophy, Flame, Code2, GitCommit, Activity, ArrowUpRight, ArrowDownRight, RefreshCw, Calendar, Target, Brain, ShieldAlert, Award, Star, Plus, Play, Sparkles } from 'lucide-react';
+import { Trophy, Flame, Code2, GitCommit, Activity, ArrowUpRight, ArrowDownRight, RefreshCw, Calendar, Target, Brain, ShieldAlert, Award, Star, Plus, Play, Sparkles, Unlink } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { dashboardStats, activityData, upcomingContests, chartData } from './mockData';
 import { motion } from 'framer-motion';
+import { useLeetCode } from '../../context/LeetCodeContext';
+import { useGitHub } from '../../context/GitHubContext';
+import { ConnectLeetCodeModal } from '../../components/ui/ConnectLeetCodeModal';
+import { ConnectGitHubModal } from '../../components/ui/ConnectGitHubModal';
 
 const Github = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -91,10 +95,12 @@ const StatCard = ({ title, value, numericValue, trend, icon: Icon, colorClass, d
 
 export const Dashboard = () => {
   const { user } = useAuth();
+  const { profile: lcProfile, isConnected: isConnectedLeetCode, connectLeetCode, disconnect: disconnectLeetCode, refreshProfile: refreshLC } = useLeetCode();
+  const { profile: ghProfile, isConnected: isConnectedGitHub, connectGitHub, disconnect: disconnectGitHub, refreshProfile: refreshGH } = useGitHub();
   const [loading, setLoading] = useState(true);
   const [chartFilter, setChartFilter] = useState('7d');
-  const [isConnectedGitHub, setIsConnectedGitHub] = useState(false);
-  const [isConnectedLeetCode, setIsConnectedLeetCode] = useState(false);
+  const [showLCModal, setShowLCModal] = useState(false);
+  const [showGHModal, setShowGHModal] = useState(false);
   const [dailyGoal, setDailyGoal] = useState({ solved: 3, target: 5 });
 
   useEffect(() => {
@@ -122,10 +128,40 @@ export const Dashboard = () => {
           <p className="text-dark-textMuted text-sm mt-1">Here is your developer metrics and roadmap progress update for today.</p>
         </div>
         <div className="flex items-center space-x-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={() => alert('Manually triggering system sync...')} className="h-10">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (isConnectedLeetCode) refreshLC();
+              if (isConnectedGitHub) refreshGH();
+            }}
+            className="h-10"
+          >
             <RefreshCw className="h-4 w-4 mr-2" />
             Sync Profiles
           </Button>
+          {isConnectedLeetCode && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={disconnectLeetCode}
+              className="h-10 text-red-400 border-red-500/20 hover:bg-red-500/10 hover:text-red-300"
+            >
+              <Unlink className="h-4 w-4 mr-2" />
+              Disconnect LeetCode
+            </Button>
+          )}
+          {isConnectedGitHub && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={disconnectGitHub}
+              className="h-10 text-red-400 border-red-500/20 hover:bg-red-500/10 hover:text-red-300"
+            >
+              <Unlink className="h-4 w-4 mr-2" />
+              Disconnect GitHub
+            </Button>
+          )}
           <Button size="sm" className="h-10">
             <Plus className="h-4 w-4 mr-2" />
             New Goal
@@ -149,12 +185,12 @@ export const Dashboard = () => {
           </div>
           <div className="flex items-center space-x-2 shrink-0 w-full md:w-auto justify-end">
             {!isConnectedLeetCode && (
-              <Button size="sm" variant="outline" onClick={() => setIsConnectedLeetCode(true)} className="h-8 text-xs border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/10">
+              <Button size="sm" variant="outline" onClick={() => setShowLCModal(true)} className="h-8 text-xs border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/10">
                 Connect LeetCode
               </Button>
             )}
             {!isConnectedGitHub && (
-              <Button size="sm" onClick={() => setIsConnectedGitHub(true)} className="h-8 text-xs bg-white text-slate-950 hover:bg-slate-200">
+              <Button size="sm" onClick={() => setShowGHModal(true)} className="h-8 text-xs bg-white text-slate-950 hover:bg-slate-200">
                 <Github className="h-3.5 w-3.5 mr-1" />
                 Connect GitHub
               </Button>
@@ -167,9 +203,9 @@ export const Dashboard = () => {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard 
           title="Problems Solved" 
-          value="312" 
-          numericValue={312}
-          trend="+12% this week"
+          value={isConnectedLeetCode ? lcProfile.problems_solved.toLocaleString() : '—'} 
+          numericValue={isConnectedLeetCode ? lcProfile.problems_solved : 0}
+          trend={isConnectedLeetCode ? `E:${lcProfile.easy} M:${lcProfile.medium} H:${lcProfile.hard}` : 'Connect LeetCode'}
           icon={Code2} 
           colorClass="bg-gradient-to-br from-primary-500 to-indigo-600 shadow-lg shadow-primary-500/20"
           delay={0.05}
@@ -187,9 +223,9 @@ export const Dashboard = () => {
         />
         <StatCard 
           title="GitHub Commits" 
-          value="1,254" 
-          numericValue={1254}
-          trend="+184 commits"
+          value={isConnectedGitHub ? ghProfile.total_commits.toLocaleString() : '—'} 
+          numericValue={isConnectedGitHub ? ghProfile.total_commits : 0}
+          trend={isConnectedGitHub ? `${ghProfile.public_repos} repos · ${ghProfile.total_stars} stars` : 'Connect GitHub'}
           icon={GitCommit} 
           colorClass="bg-gradient-to-br from-slate-700 to-slate-900 shadow-lg shadow-slate-700/20"
           delay={0.15}
@@ -197,9 +233,9 @@ export const Dashboard = () => {
         />
         <StatCard 
           title="Contest Rating" 
-          value="1,850" 
-          numericValue={1850}
-          trend="+48 points"
+          value={isConnectedLeetCode && lcProfile.contest_rating ? lcProfile.contest_rating.toLocaleString() : '—'} 
+          numericValue={isConnectedLeetCode ? (lcProfile.contest_rating || 0) : 0}
+          trend={isConnectedLeetCode && lcProfile.ranking ? `Rank #${lcProfile.ranking.toLocaleString()}` : 'Connect LeetCode'}
           icon={Trophy} 
           colorClass="bg-gradient-to-br from-cyan-500 to-blue-500 shadow-lg shadow-cyan-500/20"
           delay={0.2}
@@ -451,6 +487,17 @@ export const Dashboard = () => {
           </Card>
         </div>
       </div>
+
+      <ConnectLeetCodeModal
+        isOpen={showLCModal}
+        onClose={() => setShowLCModal(false)}
+        onConfirm={connectLeetCode}
+      />
+      <ConnectGitHubModal
+        isOpen={showGHModal}
+        onClose={() => setShowGHModal(false)}
+        onConfirm={connectGitHub}
+      />
     </div>
   );
 };

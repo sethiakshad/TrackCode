@@ -3,8 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 import { Shimmer } from '../../components/ui/Shimmer';
 import { Button } from '../../components/ui/Button';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { GitBranch, GitCommit, GitPullRequest, Eye, Heart, Sparkles, Flame, CheckCircle, RefreshCw } from 'lucide-react';
+import { GitBranch, GitCommit, GitPullRequest, Eye, Heart, Sparkles, Flame, CheckCircle, RefreshCw, ShieldAlert, Unlink, Link2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useGitHub } from '../../context/GitHubContext';
+import { ConnectGitHubModal } from '../../components/ui/ConnectGitHubModal';
 
 const languagesData = [
   { name: 'JavaScript', value: 45, color: '#f7df1e' },
@@ -26,7 +28,9 @@ const repoCards = [
 ];
 
 export const GitHubInsights = () => {
+  const { profile: ghProfile, isConnected: isConnectedGitHub, connectGitHub, disconnect: disconnectGitHub, refreshProfile, isLoading } = useGitHub();
   const [loading, setLoading] = useState(true);
+  const [showGHModal, setShowGHModal] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 800);
@@ -51,11 +55,50 @@ export const GitHubInsights = () => {
           </h1>
           <p className="text-dark-textMuted text-sm mt-1">Deep analysis of commits frequency, repository health, and language breakdown.</p>
         </div>
-        <Button variant="outline" size="sm" className="h-10 shrink-0">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh Stats
-        </Button>
+        <div className="flex items-center space-x-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-10"
+            onClick={() => { if (isConnectedGitHub) refreshProfile(); }}
+            disabled={!isConnectedGitHub || isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh Stats
+          </Button>
+          {isConnectedGitHub && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={disconnectGitHub}
+              className="h-10 text-red-400 border-red-500/20 hover:bg-red-500/10 hover:text-red-300"
+            >
+              <Unlink className="h-4 w-4 mr-2" />
+              Disconnect GitHub
+            </Button>
+          )}
+        </div>
       </div>
+
+      {!isConnectedGitHub && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col md:flex-row items-center justify-between gap-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-4 backdrop-blur-xl"
+        >
+          <div className="flex items-center space-x-3">
+            <ShieldAlert className="h-5 w-5 text-yellow-500 shrink-0" />
+            <div className="text-left">
+              <h4 className="text-sm font-semibold text-white">GitHub Not Connected</h4>
+              <p className="text-xs text-dark-textMuted">Connect your GitHub account to sync repos, stars, and commit activity.</p>
+            </div>
+          </div>
+          <Button size="sm" onClick={() => setShowGHModal(true)} className="h-8 text-xs shrink-0">
+            <Link2 className="h-3.5 w-3.5 mr-1" />
+            Connect GitHub
+          </Button>
+        </motion.div>
+      )}
 
       {/* Stats Summary Panel */}
       <div className="grid gap-4 sm:grid-cols-4">
@@ -65,8 +108,10 @@ export const GitHubInsights = () => {
               <Flame className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-[10px] uppercase font-bold text-dark-textMuted">Commit Streak</p>
-              <h3 className="text-lg font-bold text-white">18 Days</h3>
+              <p className="text-[10px] uppercase font-bold text-dark-textMuted">Public Repos</p>
+              <h3 className="text-lg font-bold text-white">
+                {isConnectedGitHub ? ghProfile.public_repos : '—'}
+              </h3>
             </div>
           </div>
         </Card>
@@ -76,8 +121,10 @@ export const GitHubInsights = () => {
               <GitCommit className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-[10px] uppercase font-bold text-dark-textMuted">Commits (Month)</p>
-              <h3 className="text-lg font-bold text-white">119 Commits</h3>
+              <p className="text-[10px] uppercase font-bold text-dark-textMuted">Recent Commits</p>
+              <h3 className="text-lg font-bold text-white">
+                {isConnectedGitHub ? ghProfile.total_commits.toLocaleString() : '—'}
+              </h3>
             </div>
           </div>
         </Card>
@@ -87,8 +134,10 @@ export const GitHubInsights = () => {
               <CheckCircle className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-[10px] uppercase font-bold text-dark-textMuted">Repo Health Score</p>
-              <h3 className="text-lg font-bold text-white">98% Perfect</h3>
+              <p className="text-[10px] uppercase font-bold text-dark-textMuted">Total Stars</p>
+              <h3 className="text-lg font-bold text-white">
+                {isConnectedGitHub ? ghProfile.total_stars.toLocaleString() : '—'}
+              </h3>
             </div>
           </div>
         </Card>
@@ -98,8 +147,10 @@ export const GitHubInsights = () => {
               <GitPullRequest className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-[10px] uppercase font-bold text-dark-textMuted">Pull Requests</p>
-              <h3 className="text-lg font-bold text-white">14 Merged</h3>
+              <p className="text-[10px] uppercase font-bold text-dark-textMuted">Followers</p>
+              <h3 className="text-lg font-bold text-white">
+                {isConnectedGitHub ? ghProfile.followers.toLocaleString() : '—'}
+              </h3>
             </div>
           </div>
         </Card>
@@ -109,7 +160,11 @@ export const GitHubInsights = () => {
       <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl">
         <CardHeader>
           <CardTitle>Contribution Calendar</CardTitle>
-          <CardDescription>Over 1,254 total commits in the past 12 months</CardDescription>
+          <CardDescription>
+            {isConnectedGitHub
+              ? `Activity for @${ghProfile.username} — ${ghProfile.total_commits.toLocaleString()} recent commits tracked`
+              : 'Connect GitHub to view your contribution activity'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -241,6 +296,12 @@ export const GitHubInsights = () => {
           ))}
         </div>
       </div>
+
+      <ConnectGitHubModal
+        isOpen={showGHModal}
+        onClose={() => setShowGHModal(false)}
+        onConfirm={connectGitHub}
+      />
     </div>
   );
 };
