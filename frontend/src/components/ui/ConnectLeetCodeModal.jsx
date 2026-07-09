@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -20,7 +20,14 @@ export const ConnectLeetCodeModal = ({ isOpen, onClose, onConfirm }) => {
   const [copied, setCopied] = useState(false);
 
   // Generate a random verification code that persists while the modal is open
-  const [verificationCode] = useState(() => `TC-${Math.floor(1000 + Math.random() * 9000)}`);
+  const [verificationCode, setVerificationCode] = useState(() => `TC-${Math.floor(1000 + Math.random() * 9000)}`);
+
+  useEffect(() => {
+    if (isOpen) {
+      setVerificationCode(`TC-${Math.floor(1000 + Math.random() * 9000)}`);
+    }
+  }, [isOpen]);
+
   const verificationUrl = `https://${verificationCode}.com`;
 
   const handleCopyUrl = async () => {

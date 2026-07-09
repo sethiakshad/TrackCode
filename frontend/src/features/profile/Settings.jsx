@@ -6,8 +6,12 @@ import { useAuth } from '../../context/AuthContext';
 import { User, Bell, Shield, Key, HelpCircle, Save, Check, Link2, Unlink } from 'lucide-react';
 import { useLeetCode } from '../../context/LeetCodeContext';
 import { useGitHub } from '../../context/GitHubContext';
+import { useCodeforces } from '../../context/CodeforcesContext';
+import { useCodechef } from '../../context/CodechefContext';
 import { ConnectLeetCodeModal } from '../../components/ui/ConnectLeetCodeModal';
 import { ConnectGitHubModal } from '../../components/ui/ConnectGitHubModal';
+import { ConnectCodeforcesModal } from '../../components/ui/ConnectCodeforcesModal';
+import { ConnectCodechefModal } from '../../components/ui/ConnectCodechefModal';
 
 const Github = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -20,13 +24,17 @@ export const Settings = () => {
   const { user } = useAuth();
   const { profile: lcProfile, isConnected: isConnectedLeetCode, connectLeetCode, disconnect: disconnectLeetCode } = useLeetCode();
   const { profile: ghProfile, isConnected: isConnectedGitHub, connectGitHub, disconnect: disconnectGitHub } = useGitHub();
+  const { profile: cfProfile, isConnected: isConnectedCodeforces, connectCodeforces, disconnect: disconnectCodeforces } = useCodeforces();
+  const { profile: ccProfile, isConnected: isConnectedCodechef, connectCodechef, disconnect: disconnectCodechef } = useCodechef();
+  
   const [name, setName] = useState(user?.name || 'Developer');
   const [email, setEmail] = useState(user?.email || 'demo@trackcode.com');
-  const [cfUsername, setCfUsername] = useState('cf_master');
   
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showLCModal, setShowLCModal] = useState(false);
   const [showGHModal, setShowGHModal] = useState(false);
+  const [showCFModal, setShowCFModal] = useState(false);
+  const [showCCModal, setShowCCModal] = useState(false);
 
   const handleSave = (e) => {
     e.preventDefault();
@@ -138,9 +146,64 @@ export const Settings = () => {
                 )}
               </div>
 
-              <div className="space-y-1.5 text-left sm:col-span-2">
-                <label className="text-xs font-semibold text-dark-textMuted">Codeforces Handle</label>
-                <Input type="text" value={cfUsername} onChange={(e) => setCfUsername(e.target.value)} />
+              <div className="space-y-1.5 text-left">
+                <label className="text-xs font-semibold text-dark-textMuted">Codeforces Status</label>
+                {isConnectedCodeforces ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center h-10 w-full rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-sm text-emerald-400">
+                      <span className="font-semibold truncate">Connected: {cfProfile.username}</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={disconnectCodeforces}
+                      className="h-10 w-full justify-center text-red-400 border-red-500/20 hover:bg-red-500/10 hover:text-red-300"
+                    >
+                      <Unlink className="h-4 w-4 mr-2" />
+                      Disconnect Codeforces
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowCFModal(true)}
+                    className="h-10 w-full justify-center border-dashed"
+                  >
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Connect Codeforces
+                  </Button>
+                )}
+              </div>
+
+              <div className="space-y-1.5 text-left">
+                <label className="text-xs font-semibold text-dark-textMuted">CodeChef Status</label>
+                {isConnectedCodechef ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center h-10 w-full rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-sm text-emerald-400">
+                      <span className="font-semibold truncate">Connected: {ccProfile.username}</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={disconnectCodechef}
+                      className="h-10 w-full justify-center text-red-400 border-red-500/20 hover:bg-red-500/10 hover:text-red-300"
+                    >
+                      <Unlink className="h-4 w-4 mr-2" />
+                      Disconnect CodeChef
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowCCModal(true)}
+                    className="h-10 w-full justify-center border-dashed"
+                  >
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Connect CodeChef
+                  </Button>
+                )}
               </div>
             </div>
           </CardContent>
@@ -195,6 +258,16 @@ export const Settings = () => {
         isOpen={showGHModal}
         onClose={() => setShowGHModal(false)}
         onConfirm={connectGitHub}
+      />
+      <ConnectCodeforcesModal
+        isOpen={showCFModal}
+        onClose={() => setShowCFModal(false)}
+        onConfirm={connectCodeforces}
+      />
+      <ConnectCodechefModal
+        isOpen={showCCModal}
+        onClose={() => setShowCCModal(false)}
+        onConfirm={connectCodechef}
       />
     </div>
   );

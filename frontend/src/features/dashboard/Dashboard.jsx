@@ -9,8 +9,12 @@ import { dashboardStats, activityData, upcomingContests, chartData } from './moc
 import { motion } from 'framer-motion';
 import { useLeetCode } from '../../context/LeetCodeContext';
 import { useGitHub } from '../../context/GitHubContext';
+import { useCodeforces } from '../../context/CodeforcesContext';
+import { useCodechef } from '../../context/CodechefContext';
 import { ConnectLeetCodeModal } from '../../components/ui/ConnectLeetCodeModal';
 import { ConnectGitHubModal } from '../../components/ui/ConnectGitHubModal';
+import { ConnectCodeforcesModal } from '../../components/ui/ConnectCodeforcesModal';
+import { ConnectCodechefModal } from '../../components/ui/ConnectCodechefModal';
 
 const Github = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -97,10 +101,15 @@ export const Dashboard = () => {
   const { user } = useAuth();
   const { profile: lcProfile, isConnected: isConnectedLeetCode, connectLeetCode, disconnect: disconnectLeetCode, refreshProfile: refreshLC } = useLeetCode();
   const { profile: ghProfile, isConnected: isConnectedGitHub, connectGitHub, disconnect: disconnectGitHub, refreshProfile: refreshGH } = useGitHub();
+  const { profile: cfProfile, isConnected: isConnectedCodeforces, connectCodeforces, disconnect: disconnectCodeforces, refreshProfile: refreshCF } = useCodeforces();
+  const { profile: ccProfile, isConnected: isConnectedCodechef, connectCodechef, disconnect: disconnectCodechef, refreshProfile: refreshCC } = useCodechef();
+  
   const [loading, setLoading] = useState(true);
   const [chartFilter, setChartFilter] = useState('7d');
   const [showLCModal, setShowLCModal] = useState(false);
   const [showGHModal, setShowGHModal] = useState(false);
+  const [showCFModal, setShowCFModal] = useState(false);
+  const [showCCModal, setShowCCModal] = useState(false);
   const [dailyGoal, setDailyGoal] = useState({ solved: 3, target: 5 });
 
   useEffect(() => {
@@ -134,6 +143,8 @@ export const Dashboard = () => {
             onClick={() => {
               if (isConnectedLeetCode) refreshLC();
               if (isConnectedGitHub) refreshGH();
+              if (isConnectedCodeforces) refreshCF();
+              if (isConnectedCodechef) refreshCC();
             }}
             className="h-10"
           >
@@ -141,25 +152,23 @@ export const Dashboard = () => {
             Sync Profiles
           </Button>
           {isConnectedLeetCode && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={disconnectLeetCode}
-              className="h-10 text-red-400 border-red-500/20 hover:bg-red-500/10 hover:text-red-300"
-            >
-              <Unlink className="h-4 w-4 mr-2" />
-              Disconnect LeetCode
+            <Button variant="outline" size="sm" onClick={disconnectLeetCode} className="h-10 text-red-400 border-red-500/20 hover:bg-red-500/10 hover:text-red-300">
+              <Unlink className="h-4 w-4 mr-2" /> LC
             </Button>
           )}
           {isConnectedGitHub && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={disconnectGitHub}
-              className="h-10 text-red-400 border-red-500/20 hover:bg-red-500/10 hover:text-red-300"
-            >
-              <Unlink className="h-4 w-4 mr-2" />
-              Disconnect GitHub
+            <Button variant="outline" size="sm" onClick={disconnectGitHub} className="h-10 text-red-400 border-red-500/20 hover:bg-red-500/10 hover:text-red-300">
+              <Unlink className="h-4 w-4 mr-2" /> GH
+            </Button>
+          )}
+          {isConnectedCodeforces && (
+            <Button variant="outline" size="sm" onClick={disconnectCodeforces} className="h-10 text-red-400 border-red-500/20 hover:bg-red-500/10 hover:text-red-300">
+              <Unlink className="h-4 w-4 mr-2" /> CF
+            </Button>
+          )}
+          {isConnectedCodechef && (
+            <Button variant="outline" size="sm" onClick={disconnectCodechef} className="h-10 text-red-400 border-red-500/20 hover:bg-red-500/10 hover:text-red-300">
+              <Unlink className="h-4 w-4 mr-2" /> CC
             </Button>
           )}
           <Button size="sm" className="h-10">
@@ -170,7 +179,7 @@ export const Dashboard = () => {
       </div>
 
       {/* Connection CTAs Alert banner */}
-      {(!isConnectedGitHub || !isConnectedLeetCode) && (
+      {(!isConnectedGitHub || !isConnectedLeetCode || !isConnectedCodeforces || !isConnectedCodechef) && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -180,19 +189,28 @@ export const Dashboard = () => {
             <ShieldAlert className="h-5 w-5 text-yellow-500 shrink-0" />
             <div className="text-left">
               <h4 className="text-sm font-semibold text-white">Accounts Disconnected</h4>
-              <p className="text-xs text-dark-textMuted">Connect LeetCode and GitHub to enable auto data synchronization and streaks tracking.</p>
+              <p className="text-xs text-dark-textMuted">Connect all competitive platforms to track global stats.</p>
             </div>
           </div>
-          <div className="flex items-center space-x-2 shrink-0 w-full md:w-auto justify-end">
+          <div className="flex flex-wrap items-center gap-2 shrink-0 w-full md:w-auto justify-end">
             {!isConnectedLeetCode && (
-              <Button size="sm" variant="outline" onClick={() => setShowLCModal(true)} className="h-8 text-xs border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/10">
-                Connect LeetCode
+              <Button size="sm" variant="outline" onClick={() => setShowLCModal(true)} className="h-8 text-[10px] border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/10 px-2 py-0">
+                LeetCode
               </Button>
             )}
             {!isConnectedGitHub && (
-              <Button size="sm" onClick={() => setShowGHModal(true)} className="h-8 text-xs bg-white text-slate-950 hover:bg-slate-200">
-                <Github className="h-3.5 w-3.5 mr-1" />
-                Connect GitHub
+              <Button size="sm" onClick={() => setShowGHModal(true)} className="h-8 text-[10px] bg-white text-slate-950 hover:bg-slate-200 px-2 py-0">
+                <Github className="h-3 w-3 mr-1" /> GitHub
+              </Button>
+            )}
+            {!isConnectedCodeforces && (
+              <Button size="sm" variant="outline" onClick={() => setShowCFModal(true)} className="h-8 text-[10px] border-blue-500/20 text-blue-400 hover:bg-blue-500/10 px-2 py-0">
+                Codeforces
+              </Button>
+            )}
+            {!isConnectedCodechef && (
+              <Button size="sm" variant="outline" onClick={() => setShowCCModal(true)} className="h-8 text-[10px] border-amber-600/20 text-amber-500 hover:bg-amber-600/10 px-2 py-0">
+                CodeChef
               </Button>
             )}
           </div>
@@ -213,9 +231,9 @@ export const Dashboard = () => {
         />
         <StatCard 
           title="Coding Streak" 
-          value="42" 
-          numericValue={42}
-          trend="+3 days streak"
+          value={isConnectedGitHub ? ghProfile.contribution_streak.toString() : '—'} 
+          numericValue={isConnectedGitHub ? ghProfile.contribution_streak : 0}
+          trend={isConnectedGitHub ? "GitHub streak" : "Connect GitHub"}
           icon={Flame} 
           colorClass="bg-gradient-to-br from-orange-500 to-red-500 shadow-lg shadow-orange-500/20"
           delay={0.1}
@@ -497,6 +515,16 @@ export const Dashboard = () => {
         isOpen={showGHModal}
         onClose={() => setShowGHModal(false)}
         onConfirm={connectGitHub}
+      />
+      <ConnectCodeforcesModal
+        isOpen={showCFModal}
+        onClose={() => setShowCFModal(false)}
+        onConfirm={connectCodeforces}
+      />
+      <ConnectCodechefModal
+        isOpen={showCCModal}
+        onClose={() => setShowCCModal(false)}
+        onConfirm={connectCodechef}
       />
     </div>
   );

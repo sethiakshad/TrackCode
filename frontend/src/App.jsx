@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { LeetCodeProvider } from './context/LeetCodeContext';
 import { GitHubProvider } from './context/GitHubContext';
+import { CodeforcesProvider } from './context/CodeforcesContext';
+import { CodechefProvider } from './context/CodechefContext';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import { NotFound } from './routes/NotFound';
@@ -39,7 +41,11 @@ function App() {
                 <ProtectedRoute>
                   <LeetCodeProvider>
                     <GitHubProvider>
-                      <DashboardLayout />
+                      <CodeforcesProvider>
+                        <CodechefProvider>
+                          <DashboardLayout />
+                        </CodechefProvider>
+                      </CodeforcesProvider>
                     </GitHubProvider>
                   </LeetCodeProvider>
                 </ProtectedRoute>

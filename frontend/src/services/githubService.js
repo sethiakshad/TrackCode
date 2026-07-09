@@ -110,29 +110,95 @@ async function fetchRepoStats(username) {
   return { total_stars };
 }
 
-async function fetchRecentCommitCount(username) {
-  let commits = 0;
+async function fetchContributionsData(username) {
+  let total_commits = 0;
+  let contribution_streak = 0;
 
-  for (let page = 1; page <= 3; page += 1) {
+  try {
     const res = await fetchWithTimeout(
-      `${GITHUB_API_BASE}/users/${encodeURIComponent(username)}/events/public?per_page=100&page=${page}&t=${Date.now()}`
+      `https://github-contributions-api.deno.dev/${encodeURIComponent(username)}.json`,
+      15000
     );
-
-    if (!res.ok) break;
-
-    const events = await res.json();
-    if (!Array.isArray(events) || events.length === 0) break;
-
-    for (const event of events) {
-      if (event.type === 'PushEvent' && Array.isArray(event.payload?.commits)) {
-        commits += event.payload.commits.length;
+    
+    if (res.ok) {
+      const data = await res.json();
+      total_commits = data.totalContributions || 0;
+      
+      if (Array.isArray(data.contributions)) {
+        // Flatten the weeks array into a single list of days
+        const days = data.contributions.flat();
+        
+        // Find today's date string (e.g. "2023-10-25")
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        const todayStr = `${yyyy}-${mm}-${dd}`;
+        
+        let streak = 0;
+        let foundTodayOrYesterday = false;
+        
+        // Iterate backwards through the days
+        for (let i = days.length - 1; i >= 0; i--) {
+          const day = days[i];
+          
+          if (!foundTodayOrYesterday) {
+            if (day.date === todayStr) {
+              foundTodayOrYesterday = true;
+              if (day.contributionCount > 0) {
+                streak++;
+              }
+            } else if (day.date < todayStr) {
+              // Missed today entirely in the array? Start from yesterday
+              foundTodayOrYesterday = true;
+              if (day.contributionCount > 0) streak++;
+              else break; // yesterday was 0, so 0 streak
+            }
+          } else {
+            if (day.contributionCount > 0) {
+              streak++;
+            } else {
+              break;
+            }
+          }
+        }
+        
+        contribution_streak = streak;
       }
+      
+      return { total_commits, contribution_streak };
     }
-
-    if (events.length < 100) break;
+  } catch (err) {
+    console.warn('Failed to fetch contributions graph:', err);
   }
 
-  return commits;
+  // Fallback to events API if deno API fails
+  try {
+    for (let page = 1; page <= 3; page += 1) {
+      const res = await fetchWithTimeout(
+        `${GITHUB_API_BASE}/users/${encodeURIComponent(username)}/events/public?per_page=100&page=${page}&t=${Date.now()}`
+      );
+      if (!res.ok) break;
+      const events = await res.json();
+      if (!Array.isArray(events) || events.length === 0) break;
+      for (const event of events) {
+        if (event.type === 'PushEvent') {
+          if (Array.isArray(event.payload?.commits)) {
+            total_commits += event.payload.commits.length;
+          } else if (typeof event.payload?.size === 'number') {
+            total_commits += event.payload.size;
+          } else {
+            total_commits += 1;
+          }
+        }
+      }
+      if (events.length < 100) break;
+    }
+  } catch (err) {
+    console.warn('Failed to fetch events fallback:', err);
+  }
+
+  return { total_commits, contribution_streak };
 }
 
 const mapDbRowToProfile = (row) => ({
@@ -161,9 +227,9 @@ export async function fetchGitHubProfile(username) {
 
   const profile = await fetchGitHubProfileRaw(trimmed);
 
-  const [repoStats, total_commits] = await Promise.all([
+  const [repoStats, contribData] = await Promise.all([
     fetchRepoStats(trimmed),
-    fetchRecentCommitCount(trimmed),
+    fetchContributionsData(trimmed),
   ]);
 
   return {
@@ -174,8 +240,8 @@ export async function fetchGitHubProfile(username) {
     following: profile.following || 0,
     public_repos: profile.public_repos || 0,
     total_stars: repoStats.total_stars,
-    total_commits,
-    contribution_streak: 0,
+    total_commits: contribData.total_commits,
+    contribution_streak: contribData.contribution_streak,
     bio: profile.bio || '',
     blog: profile.blog || '',
     company: profile.company || '',
