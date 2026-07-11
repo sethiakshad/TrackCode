@@ -31,15 +31,26 @@ export const Settings = () => {
   const [email, setEmail] = useState(user?.email || 'demo@trackcode.com');
   
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [showLCModal, setShowLCModal] = useState(false);
   const [showGHModal, setShowGHModal] = useState(false);
   const [showCFModal, setShowCFModal] = useState(false);
   const [showCCModal, setShowCCModal] = useState(false);
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2000);
+    if (!user?.id) return;
+    setIsSaving(true);
+    try {
+      const { updateProfile } = await import('../../lib/api/settingsApi');
+      await updateProfile(user.id, { name });
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    } catch (err) {
+      console.error("Failed to save settings:", err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -242,9 +253,9 @@ export const Settings = () => {
               Settings saved successfully!
             </span>
           )}
-          <Button type="submit" className="h-10 px-6 font-semibold">
+          <Button type="submit" disabled={isSaving} className="h-10 px-6 font-semibold">
             <Save className="h-4 w-4 mr-2" />
-            Save Changes
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>
       </form>

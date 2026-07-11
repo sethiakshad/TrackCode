@@ -1,43 +1,38 @@
 import axios from 'axios';
+import { supabase } from '../utils/supabase';
 
-// Create an Axios instance
+// Create an Axios instance (used for any external/custom REST endpoints)
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
   headers: {
     'Content-Type': 'application/json',
   },
-  // timeout: 10000,
+  timeout: 15000,
 });
 
-// Mock delay to simulate network latency for loading states (only in development)
-const MOCK_DELAY_MS = 800;
-
+// Attach the Supabase JWT token to every request automatically
 apiClient.interceptors.request.use(
   async (config) => {
-    // Artificial delay for mock services when not in production
-    if (import.meta.env.MODE !== 'production') {
-      await new Promise((resolve) => setTimeout(resolve, MOCK_DELAY_MS));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        config.headers.Authorization = `Bearer ${session.access_token}`;
+      }
+    } catch {
+      // No session — proceed unauthenticated
     }
-
-    // You can attach auth tokens here later
-    // const token = localStorage.getItem('token');
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`;
-    // }
-
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 apiClient.interceptors.response.use(
-  (response) => {
-    return response.data;
-  },
+  (response) => response.data,
   (error) => {
-    // Handle global errors here (e.g., redirect on 401)
+    // Redirect to login on 401
+    if (error.response?.status === 401) {
+      window.location.href = '/login';
+    }
     return Promise.reject(error);
   }
 );

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Shimmer } from '../../components/ui/Shimmer';
 import { Button } from '../../components/ui/Button';
@@ -7,41 +8,58 @@ import { GitBranch, GitCommit, GitPullRequest, Eye, Heart, Sparkles, Flame, Chec
 import { motion } from 'framer-motion';
 import { useGitHub } from '../../context/GitHubContext';
 import { ConnectGitHubModal } from '../../components/ui/ConnectGitHubModal';
-
-const languagesData = [
-  { name: 'JavaScript', value: 45, color: '#f7df1e' },
-  { name: 'Python', value: 25, color: '#3776ab' },
-  { name: 'Rust', value: 15, color: '#dea584' },
-  { name: 'TypeScript', value: 15, color: '#3178c6' },
-];
-
-const commitFreqData = [
-  { week: 'W1', commits: 24 },
-  { week: 'W2', commits: 38 },
-  { week: 'W3', commits: 15 },
-  { week: 'W4', commits: 42 },
-];
-
-const repoCards = [
-  { name: 'TrackCode', desc: 'Real-time dev productivity portal console.', stars: 120, forks: 15, lang: 'TypeScript' },
-  { name: 'algos-practice', desc: 'Curated solution sets for Leetcode and Codeforces.', stars: 45, forks: 8, lang: 'Python' },
-];
+import { getGithubStats } from '../../lib/api/githubApi';
 
 export const GitHubInsights = () => {
+  const { user } = useAuth();
   const { profile: ghProfile, isConnected: isConnectedGitHub, connectGitHub, disconnect: disconnectGitHub, refreshProfile, isLoading } = useGitHub();
   const [loading, setLoading] = useState(true);
   const [showGHModal, setShowGHModal] = useState(false);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(timer);
-  }, []);
+  const [stats, setStats] = useState({
+    languages: [],
+    commitHistory: [],
+    repos: [],
+    calendar: []
+  });
 
-  // Generate mock GitHub calendar contribution days
-  const calendarWeeks = Array.from({ length: 52 }, (_, weekIndex) => {
+  useEffect(() => {
+    if (!isConnectedGitHub || !user?.id) {
+      setLoading(false);
+      return;
+    }
+    
+    const loadStats = async () => {
+      try {
+        setLoading(true);
+        const data = await getGithubStats(user.id);
+        setStats({
+          languages: data.languages?.length ? data.languages : [
+            { name: 'JavaScript', value: 45, color: '#f7df1e' },
+            { name: 'Python', value: 25, color: '#3776ab' },
+            { name: 'TypeScript', value: 30, color: '#3178c6' },
+          ],
+          commitHistory: data.commitHistory?.length ? data.commitHistory : [
+            { week: 'W1', commits: 0 }, { week: 'W2', commits: 0 },
+            { week: 'W3', commits: 0 }, { week: 'W4', commits: 0 }
+          ],
+          repos: data.repos || [],
+          calendar: data.calendar || []
+        });
+      } catch (err) {
+        console.error("Failed to fetch github stats", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadStats();
+  }, [isConnectedGitHub, user?.id]);
+
+  // Generate calendar weeks if empty
+  const calendarWeeks = stats.calendar.length ? stats.calendar : Array.from({ length: 52 }, (_, weekIndex) => {
     return Array.from({ length: 7 }, (_, dayIndex) => {
-      const level = Math.floor(Math.random() * 4); // 0 = none, 1 = low, 2 = med, 3 = high
-      return { level };
+      return { level: 0 };
     });
   });
 
@@ -110,7 +128,7 @@ export const GitHubInsights = () => {
             <div>
               <p className="text-[10px] uppercase font-bold text-dark-textMuted">Public Repos</p>
               <h3 className="text-lg font-bold text-white">
-                {isConnectedGitHub ? ghProfile.public_repos : '—'}
+                {isConnectedGitHub ? ghProfile?.public_repos : '—'}
               </h3>
             </div>
           </div>
@@ -123,7 +141,7 @@ export const GitHubInsights = () => {
             <div>
               <p className="text-[10px] uppercase font-bold text-dark-textMuted">Recent Commits</p>
               <h3 className="text-lg font-bold text-white">
-                {isConnectedGitHub ? ghProfile.total_commits.toLocaleString() : '—'}
+                {isConnectedGitHub && ghProfile?.total_commits ? ghProfile.total_commits.toLocaleString() : '—'}
               </h3>
             </div>
           </div>
@@ -136,7 +154,7 @@ export const GitHubInsights = () => {
             <div>
               <p className="text-[10px] uppercase font-bold text-dark-textMuted">Total Stars</p>
               <h3 className="text-lg font-bold text-white">
-                {isConnectedGitHub ? ghProfile.total_stars.toLocaleString() : '—'}
+                {isConnectedGitHub && ghProfile?.total_stars ? ghProfile.total_stars.toLocaleString() : '—'}
               </h3>
             </div>
           </div>
@@ -149,7 +167,7 @@ export const GitHubInsights = () => {
             <div>
               <p className="text-[10px] uppercase font-bold text-dark-textMuted">Followers</p>
               <h3 className="text-lg font-bold text-white">
-                {isConnectedGitHub ? ghProfile.followers.toLocaleString() : '—'}
+                {isConnectedGitHub && ghProfile?.followers ? ghProfile.followers.toLocaleString() : '—'}
               </h3>
             </div>
           </div>
@@ -161,8 +179,8 @@ export const GitHubInsights = () => {
         <CardHeader>
           <CardTitle>Contribution Calendar</CardTitle>
           <CardDescription>
-            {isConnectedGitHub
-              ? `Activity for @${ghProfile.username} — ${ghProfile.total_commits.toLocaleString()} recent commits tracked`
+            {isConnectedGitHub && ghProfile
+              ? `Activity for @${ghProfile.username}`
               : 'Connect GitHub to view your contribution activity'}
           </CardDescription>
         </CardHeader>
@@ -219,7 +237,7 @@ export const GitHubInsights = () => {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={languagesData}
+                        data={stats.languages}
                         cx="50%"
                         cy="50%"
                         innerRadius={50}
@@ -227,8 +245,8 @@ export const GitHubInsights = () => {
                         paddingAngle={5}
                         dataKey="value"
                       >
-                        {languagesData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        {stats.languages.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color || '#3178c6'} />
                         ))}
                       </Pie>
                       <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)' }} />
@@ -236,9 +254,9 @@ export const GitHubInsights = () => {
                   </ResponsiveContainer>
                 </div>
                 <div className="space-y-2.5">
-                  {languagesData.map((l) => (
+                  {stats.languages.map((l) => (
                     <div key={l.name} className="flex items-center space-x-2 text-xs">
-                      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: l.color }} />
+                      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: l.color || '#3178c6' }} />
                       <span className="text-white font-semibold">{l.name}</span>
                       <span className="text-dark-textMuted">({l.value}%)</span>
                     </div>
@@ -260,7 +278,7 @@ export const GitHubInsights = () => {
               <Shimmer className="h-full w-full" />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={commitFreqData}>
+                <BarChart data={stats.commitHistory}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                   <XAxis dataKey="week" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
                   <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
@@ -277,7 +295,7 @@ export const GitHubInsights = () => {
       <div className="space-y-4">
         <h3 className="text-xl font-bold text-white">Active Repositories</h3>
         <div className="grid gap-4 sm:grid-cols-2">
-          {repoCards.map((r, idx) => (
+          {stats.repos.map((r, idx) => (
             <Card key={idx} className="border-white/5 bg-slate-900/40 backdrop-blur-xl hover:border-primary-500/20 transition-all p-6">
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
@@ -294,6 +312,9 @@ export const GitHubInsights = () => {
               </div>
             </Card>
           ))}
+          {!loading && stats.repos.length === 0 && (
+             <p className="text-sm text-dark-textMuted col-span-2">No active repositories found.</p>
+          )}
         </div>
       </div>
 

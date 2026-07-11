@@ -1,17 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Shimmer } from '../../components/ui/Shimmer';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Bot, User, Send, Sparkles, Brain, Award, ArrowRight, Zap, Target } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getAiRecommendations, getAiFeedbackSummary } from '../../lib/api/coachApi';
 
 export const AICoach = () => {
+  const { user } = useAuth();
   const [messages, setMessages] = useState([
     { role: 'assistant', content: "Hello! I am your TrackCode AI Coach. I analyze your coding performance across LeetCode, Codeforces, and GitHub. How can I help you improve today?" }
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  
+  const [recommendations, setRecommendations] = useState([]);
+  const [feedbackSummary, setFeedbackSummary] = useState("");
+  const [loading, setLoading] = useState(true);
+
   const chatBottomRef = useRef(null);
 
   const suggestedPrompts = [
@@ -19,6 +27,26 @@ export const AICoach = () => {
     "How to prepare for next contest?",
     "Why is my submission speed low?"
   ];
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const [recs, feedback] = await Promise.all([
+          getAiRecommendations(user.id),
+          getAiFeedbackSummary(user.id)
+        ]);
+        setRecommendations(recs);
+        setFeedbackSummary(feedback);
+      } catch (err) {
+        console.error("Failed to load coach data", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, [user?.id]);
 
   const handleSend = (text) => {
     if (!text.trim()) return;
@@ -29,12 +57,14 @@ export const AICoach = () => {
     setInputValue('');
     setIsTyping(true);
 
-    // Simulate AI response after delay
+    // Simulate AI response after delay (mocking the chat completion API)
     setTimeout(() => {
       setIsTyping(false);
-      let responseText = "Based on your latest contest stats, your Dynamic Programming mastery is 45%. You are struggling with transitioning relations. I suggest solving 'Longest Common Subsequence' and 'Edit Distance' to build core conceptual intuition.";
+      let responseText = "Based on your latest contest stats, your mastery is dropping. I suggest focusing on building core conceptual intuition.";
       if (text.toLowerCase().includes('contest')) {
-        responseText = "To prepare for Weekly Contest 400: Practice 3 Medium problems in a timed 45-minute window. Focus on accuracy over speed to minimize Wrong Answer penalties.";
+        responseText = "To prepare for upcoming contests: Practice 3 Medium problems in a timed 45-minute window. Focus on accuracy over speed to minimize Wrong Answer penalties.";
+      } else if (text.toLowerCase().includes('dp') || text.toLowerCase().includes('dynamic programming')) {
+         responseText = "Your DP score is low. I recommend starting with classic problems: Knapsack, Longest Common Subsequence, and Matrix Chain Multiplication.";
       }
       setMessages(prev => [...prev, { role: 'assistant', content: responseText }]);
     }, 1200);
@@ -152,16 +182,22 @@ export const AICoach = () => {
                 <Sparkles className="h-4 w-4 text-cyan-400" />
                 <span>Weekly AI Report</span>
               </CardTitle>
-              <CardDescription className="text-[10px]">Calculated from last 14 submissions</CardDescription>
+              <CardDescription className="text-[10px]">Calculated from recent submissions</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-xs">
-              <div className="bg-slate-950/50 p-3 rounded-lg border border-white/5 space-y-1">
-                <div className="flex justify-between font-bold text-white">
-                  <span>Productivity Index</span>
-                  <span className="text-cyan-400">88/100</span>
+              {loading ? (
+                <Shimmer className="h-16 w-full rounded-lg" />
+              ) : (
+                <div className="bg-slate-950/50 p-3 rounded-lg border border-white/5 space-y-1">
+                  <div className="flex justify-between font-bold text-white">
+                    <span>Performance Overview</span>
+                    <span className="text-cyan-400">AI</span>
+                  </div>
+                  <p className="text-[10px] text-dark-textMuted">
+                    {feedbackSummary || "No data to generate feedback yet. Start solving problems!"}
+                  </p>
                 </div>
-                <p className="text-[10px] text-dark-textMuted">Streak consistency is perfect. Time-to-solve medium problems decreased by 2.2m.</p>
-              </div>
+              )}
             </CardContent>
           </Card>
 
@@ -172,24 +208,25 @@ export const AICoach = () => {
                 <Brain className="h-4 w-4 text-primary-400" />
                 <span>DSA Roadmap Preview</span>
               </CardTitle>
-              <CardDescription className="text-[10px]">Recommended milestones to hit 2000 LeetCode rating</CardDescription>
+              <CardDescription className="text-[10px]">Recommended milestones to hit based on AI analysis</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="relative border-l border-white/10 pl-4 ml-2 space-y-4 py-2">
-                <div className="relative">
-                  <div className="absolute -left-[21px] top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 border border-[#030712]" />
-                  <div className="text-xs">
-                    <p className="font-bold text-white">1. Binary Search Edge Cases</p>
-                    <p className="text-[10px] text-dark-textMuted">Solve 8 target problems to master boundaries</p>
-                  </div>
-                </div>
-                <div className="relative">
-                  <div className="absolute -left-[21px] top-0.5 h-2.5 w-2.5 rounded-full bg-primary-500 border border-[#030712] animate-pulse" />
-                  <div className="text-xs">
-                    <p className="font-bold text-white">2. DP Transition Maps</p>
-                    <p className="text-[10px] text-dark-textMuted">Learn standard array interval dp patterns</p>
-                  </div>
-                </div>
+                {loading ? (
+                  <Shimmer className="h-20 w-full" />
+                ) : recommendations.length === 0 ? (
+                  <p className="text-[10px] text-dark-textMuted text-center">No recommendations yet.</p>
+                ) : (
+                  recommendations.map((rec, i) => (
+                    <div key={rec.id} className="relative">
+                      <div className={`absolute -left-[21px] top-0.5 h-2.5 w-2.5 rounded-full border border-[#030712] ${i === 0 ? 'bg-primary-500 animate-pulse' : 'bg-emerald-500'}`} />
+                      <div className="text-xs">
+                        <p className="font-bold text-white">{i + 1}. {rec.topic} - {rec.title}</p>
+                        <p className="text-[10px] text-dark-textMuted">{rec.relevance_reason}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>

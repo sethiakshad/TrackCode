@@ -5,7 +5,6 @@ import { Shimmer } from '../../components/ui/Shimmer';
 import { Button } from '../../components/ui/Button';
 import { Trophy, Flame, Code2, GitCommit, Activity, ArrowUpRight, ArrowDownRight, RefreshCw, Calendar, Target, Brain, ShieldAlert, Award, Star, Plus, Play, Sparkles, Unlink } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { dashboardStats, activityData, upcomingContests, chartData } from './mockData';
 import { motion } from 'framer-motion';
 import { useLeetCode } from '../../context/LeetCodeContext';
 import { useGitHub } from '../../context/GitHubContext';
@@ -15,6 +14,11 @@ import { ConnectLeetCodeModal } from '../../components/ui/ConnectLeetCodeModal';
 import { ConnectGitHubModal } from '../../components/ui/ConnectGitHubModal';
 import { ConnectCodeforcesModal } from '../../components/ui/ConnectCodeforcesModal';
 import { ConnectCodechefModal } from '../../components/ui/ConnectCodechefModal';
+import { getDashboardSummary, getWeeklyActivity, getUpcomingContests } from '../../lib/api/dashboardApi';
+import { getGoals } from '../../lib/api/goalsApi';
+import { getTopicMastery } from '../../lib/api/analyticsApi';
+import { getAiFeedbackSummary } from '../../lib/api/coachApi';
+
 
 const Github = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -110,21 +114,66 @@ export const Dashboard = () => {
   const [showGHModal, setShowGHModal] = useState(false);
   const [showCFModal, setShowCFModal] = useState(false);
   const [showCCModal, setShowCCModal] = useState(false);
-  const [dailyGoal, setDailyGoal] = useState({ solved: 3, target: 5 });
+  
+  const [dbSummary, setDbSummary] = useState(null);
+  const [chartData, setChartData] = useState([]);
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
+  const [dailyGoal, setDailyGoal] = useState({ solved: 0, target: 5 });
+  const [aiFeedback, setAiFeedback] = useState("");
+  const [weakTopics, setWeakTopics] = useState([]);
 
   useEffect(() => {
+    if (!user?.id) return;
     const loadData = async () => {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setLoading(false);
+      try {
+        setLoading(true);
+        const [summary, activity, contests, goalsList, topics, feedback] = await Promise.all([
+          getDashboardSummary(user.id),
+          getWeeklyActivity(user.id),
+          getUpcomingContests(),
+          getGoals(user.id),
+          getTopicMastery(user.id),
+          getAiFeedbackSummary(user.id)
+        ]);
+
+        setDbSummary(summary);
+        setChartData(activity);
+        setUpcomingEvents(contests);
+        setAiFeedback(feedback);
+        
+        // Setup weak topics (topics with score < 70)
+        const sortedWeak = topics
+          .filter(t => t.A < 70)
+          .map(t => ({ name: t.subject, mastery: t.A }))
+          .slice(0, 2);
+        setWeakTopics(sortedWeak.length > 0 ? sortedWeak : [
+          { name: 'Dynamic Programming', mastery: 45 },
+          { name: 'Graphs (DFS/BFS)', mastery: 62 }
+        ]);
+
+        // Find primary active goal for daily target progress
+        const activeGoal = goalsList.find(g => !g.completed);
+        if (activeGoal) {
+          setDailyGoal({
+            solved: Math.round((activeGoal.progress / 100) * activeGoal.target),
+            target: activeGoal.target
+          });
+        }
+      } catch (err) {
+        console.error("Dashboard load failed:", err);
+      } finally {
+        setLoading(false);
+      }
     };
     loadData();
-  }, []);
+  }, [user?.id]);
 
   // Simple calendar generator for Heatmap Preview
   const heatmapDays = Array.from({ length: 28 }, (_, i) => {
     const values = [0, 1, 2, 4, 0, 8, 3, 5, 0, 2, 0, 1, 6, 0, 0, 2, 4, 3, 0, 1, 5, 0, 0, 2, 0, 1, 4, 3];
     return { day: i + 1, level: values[i % values.length] };
   });
+
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -462,17 +511,21 @@ export const Dashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {upcomingContests.map((c) => (
-                <div key={c.id} className="flex items-center justify-between bg-slate-950/40 p-2.5 rounded-lg border border-white/5">
-                  <div className="space-y-0.5 text-left">
-                    <p className="text-xs font-semibold text-white truncate max-w-[150px]">{c.name}</p>
-                    <p className="text-[10px] text-dark-textMuted">{c.platform} • {c.participants.toLocaleString()} joined</p>
+              {upcomingEvents.length === 0 ? (
+                <p className="text-xs text-dark-textMuted py-4">No upcoming contests found.</p>
+              ) : (
+                upcomingEvents.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between bg-slate-950/40 p-2.5 rounded-lg border border-white/5">
+                    <div className="space-y-0.5 text-left">
+                      <p className="text-xs font-semibold text-white truncate max-w-[150px]">{c.name}</p>
+                      <p className="text-[10px] text-dark-textMuted">{c.platform}</p>
+                    </div>
+                    <span className="text-[10px] font-bold text-cyan-400 bg-cyan-950/30 border border-cyan-500/20 px-2 py-1 rounded-md shrink-0">
+                      {new Date(c.start_time).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
                   </div>
-                  <span className="text-[10px] font-bold text-cyan-400 bg-cyan-950/30 border border-cyan-500/20 px-2 py-1 rounded-md shrink-0">
-                    {c.time}
-                  </span>
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
 
@@ -483,24 +536,17 @@ export const Dashboard = () => {
               <CardDescription>Topics needing review based on submissions</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="space-y-1 text-left">
-                <div className="flex justify-between text-xs font-semibold">
-                  <span className="text-white">Dynamic Programming</span>
-                  <span className="text-red-400">45% mastery</span>
+              {weakTopics.map((topic, i) => (
+                <div key={i} className="space-y-1 text-left">
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-white">{topic.name}</span>
+                    <span className={topic.mastery < 50 ? "text-red-400" : "text-yellow-400"}>{topic.mastery}% mastery</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                    <div className={`h-full ${topic.mastery < 50 ? 'bg-red-500' : 'bg-yellow-500'} rounded-full`} style={{ width: `${topic.mastery}%` }} />
+                  </div>
                 </div>
-                <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-red-500 rounded-full" style={{ width: '45%' }} />
-                </div>
-              </div>
-              <div className="space-y-1 text-left">
-                <div className="flex justify-between text-xs font-semibold">
-                  <span className="text-white">Graphs (DFS/BFS)</span>
-                  <span className="text-yellow-400">62% mastery</span>
-                </div>
-                <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-yellow-500 rounded-full" style={{ width: '62%' }} />
-                </div>
-              </div>
+              ))}
             </CardContent>
           </Card>
         </div>

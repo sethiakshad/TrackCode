@@ -1,40 +1,55 @@
-
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Shimmer } from '../../components/ui/Shimmer';
 import { Button } from '../../components/ui/Button';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
 import { ArrowUpRight, Award, Zap, CheckCircle2, TrendingUp, Calendar, Filter } from 'lucide-react';
 import { motion } from 'framer-motion';
-
-const masteryData = [
-  { subject: 'Arrays & Hashing', A: 120, fullMark: 150 },
-  { subject: 'Strings', A: 98, fullMark: 150 },
-  { subject: 'DP', A: 86, fullMark: 150 },
-  { subject: 'Graphs & Trees', A: 75, fullMark: 150 },
-  { subject: 'Sliding Window', A: 110, fullMark: 150 },
-  { subject: 'Math & Bitwise', A: 55, fullMark: 150 },
-];
-
-const difficultyData = [
-  { name: 'Easy', count: 156, fill: '#10b981' },
-  { name: 'Medium', count: 124, fill: '#f59e0b' },
-  { name: 'Hard', count: 32, fill: '#ef4444' },
-];
+import { getTopicMastery, getDifficultyDistribution, getAnalyticsOverview } from '../../lib/api/analyticsApi';
 
 const COLORS = ['#10b981', '#f59e0b', '#ef4444'];
 
 export const Analytics = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('monthly');
+  
+  const [masteryData, setMasteryData] = useState([]);
+  const [difficultyData, setDifficultyData] = useState([]);
+  const [overview, setOverview] = useState({ acceptanceRate: 0, contestsEntered: 0, totalSolved: 0 });
 
   useEffect(() => {
+    if (!user?.id) return;
     const loadData = async () => {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setLoading(false);
+      try {
+        setLoading(true);
+        const [mastery, difficulty, overviewStats] = await Promise.all([
+          getTopicMastery(user.id),
+          getDifficultyDistribution(user.id),
+          getAnalyticsOverview(user.id)
+        ]);
+        
+        setMasteryData(mastery.length ? mastery : [
+          { subject: 'Arrays & Hashing', A: 0, fullMark: 100 },
+          { subject: 'Strings', A: 0, fullMark: 100 }
+        ]);
+        
+        setDifficultyData(difficulty.length ? difficulty : [
+          { name: 'Easy', count: 0, fill: '#10b981' },
+          { name: 'Medium', count: 0, fill: '#f59e0b' },
+          { name: 'Hard', count: 0, fill: '#ef4444' },
+        ]);
+        
+        setOverview(overviewStats);
+      } catch (err) {
+        console.error("Failed to load analytics:", err);
+      } finally {
+        setLoading(false);
+      }
     };
     loadData();
-  }, []);
+  }, [user?.id]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -60,11 +75,7 @@ export const Analytics = () => {
           <CardContent className="p-6 flex items-center justify-between">
             <div className="space-y-1">
               <span className="text-xs text-dark-textMuted font-medium uppercase tracking-wider">Acceptance Rate</span>
-              <h3 className="text-2xl font-extrabold text-white">74.2%</h3>
-              <p className="text-[10px] text-emerald-400 flex items-center">
-                <ArrowUpRight className="h-3.5 w-3.5 mr-0.5" />
-                +2.4% vs last month
-              </p>
+              <h3 className="text-2xl font-extrabold text-white">{overview.acceptanceRate}%</h3>
             </div>
             <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20">
               <CheckCircle2 className="h-5 w-5" />
@@ -75,12 +86,8 @@ export const Analytics = () => {
         <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl">
           <CardContent className="p-6 flex items-center justify-between">
             <div className="space-y-1">
-              <span className="text-xs text-dark-textMuted font-medium uppercase tracking-wider">Avg Solving Speed</span>
-              <h3 className="text-2xl font-extrabold text-white">22 mins</h3>
-              <p className="text-[10px] text-emerald-400 flex items-center">
-                <ArrowUpRight className="h-3.5 w-3.5 mr-0.5" />
-                -3 mins solved faster
-              </p>
+              <span className="text-xs text-dark-textMuted font-medium uppercase tracking-wider">Total Solved</span>
+              <h3 className="text-2xl font-extrabold text-white">{overview.totalSolved}</h3>
             </div>
             <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 border border-amber-500/20">
               <Zap className="h-5 w-5" />
@@ -92,11 +99,7 @@ export const Analytics = () => {
           <CardContent className="p-6 flex items-center justify-between">
             <div className="space-y-1">
               <span className="text-xs text-dark-textMuted font-medium uppercase tracking-wider">Contests Entered</span>
-              <h3 className="text-2xl font-extrabold text-white">12</h3>
-              <p className="text-[10px] text-primary-400 flex items-center">
-                <ArrowUpRight className="h-3.5 w-3.5 mr-0.5" />
-                Top 5.2% rank bracket
-              </p>
+              <h3 className="text-2xl font-extrabold text-white">{overview.contestsEntered}</h3>
             </div>
             <div className="h-10 w-10 rounded-lg bg-primary-500/10 flex items-center justify-center text-primary-400 border border-primary-500/20">
               <Award className="h-5 w-5" />
@@ -122,8 +125,8 @@ export const Analytics = () => {
                     <RadarChart cx="50%" cy="50%" outerRadius="75%" data={masteryData}>
                       <PolarGrid stroke="rgba(255,255,255,0.05)" />
                       <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                      <PolarRadiusAxis angle={30} domain={[0, 150]} tick={false} axisLine={false} />
-                      <Radar name="Mastery Level" dataKey="A" stroke="#6366f1" fill="#6366f1" fillOpacity={0.25} />
+                      <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                      <Radar name="Mastery Score" dataKey="A" stroke="#6366f1" fill="#6366f1" fillOpacity={0.25} />
                       <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }} itemStyle={{ color: '#fff' }} />
                     </RadarChart>
                   </ResponsiveContainer>
@@ -138,7 +141,7 @@ export const Analytics = () => {
           <Card className="h-full border-white/5 bg-slate-900/40 backdrop-blur-xl">
             <CardHeader>
               <CardTitle>Difficulty Breakdown</CardTitle>
-              <CardDescription>Visual distribution of solved algorithmic problems</CardDescription>
+              <CardDescription>Visual distribution of solved algorithmic problems (LeetCode Data)</CardDescription>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -163,9 +166,9 @@ export const Analytics = () => {
                     </BarChart>
                   </ResponsiveContainer>
                   <div className="flex justify-around text-xs mt-2 text-dark-textMuted pt-4 border-t border-white/5">
-                    <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-emerald-500 mr-2" /> Easy (156)</span>
-                    <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-amber-500 mr-2" /> Medium (124)</span>
-                    <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-red-500 mr-2" /> Hard (32)</span>
+                    <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-emerald-500 mr-2" /> Easy ({difficultyData[0]?.count || 0})</span>
+                    <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-amber-500 mr-2" /> Medium ({difficultyData[1]?.count || 0})</span>
+                    <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-red-500 mr-2" /> Hard ({difficultyData[2]?.count || 0})</span>
                   </div>
                 </div>
               )}
