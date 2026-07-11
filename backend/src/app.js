@@ -3,6 +3,7 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
 const errorHandler = require('./middleware/errorHandler');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
@@ -20,8 +21,8 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// API Routes will be registered here
-// app.use('/api/v1', routes);
+// API Routes
+app.use('/api/v1/auth', authRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
