@@ -25,21 +25,12 @@ export const Register = () => {
     setSuccessMessage('');
     
     try {
-      const result = await register(name, email);
-
-      if (result.requiresOtpVerification) {
-        navigate('/otp-verify', {
-          state: {
-            email,
-            name,
-            mode: 'register',
-          },
-        });
-        return;
-      }
-
-      setSuccessMessage('Account created successfully. Redirecting to your dashboard...');
-      navigate('/dashboard');
+      const result = await register(name, email, password);
+      
+      setSuccessMessage(result.message || 'Account created! Please check your email for a verification link.');
+      setName('');
+      setEmail('');
+      setPassword('');
     } catch (err) {
       setError(err.message || 'Failed to register.');
     } finally {

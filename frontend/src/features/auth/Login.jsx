@@ -31,17 +31,8 @@ export const Login = () => {
     setSuccessMessage('');
     
     try {
-      const result = await login(email, password);
-      if (result.requiresOtpVerification) {
-        navigate('/otp-verify', {
-          state: {
-            email,
-            password,
-            mode: 'login',
-            from: location.state?.from,
-          },
-        });
-      }
+      await login(email, password);
+      navigate(location.state?.from || '/dashboard');
     } catch (err) {
       setError(err.message || 'Failed to send the verification code. Please try again.');
     } finally {

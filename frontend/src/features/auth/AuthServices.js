@@ -1,8 +1,6 @@
 import apiClient from '../../lib/axios';
 import { supabase } from '../../utils/supabase';
 
-const PENDING_REGISTRATION_KEY = 'trackcode_pending_registration';
-
 const buildAvatarUrl = (seed) =>
   `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}`;
 
@@ -41,36 +39,20 @@ const mapSupabaseUser = async (authUser) => {
   };
 };
 
-const savePendingRegistration = (registration) => {
-  sessionStorage.setItem(PENDING_REGISTRATION_KEY, JSON.stringify(registration));
-};
-
-const clearPendingRegistration = () => {
-  sessionStorage.removeItem(PENDING_REGISTRATION_KEY);
-};
-
-const getPendingRegistration = () => {
-  const raw = sessionStorage.getItem(PENDING_REGISTRATION_KEY);
-  return raw ? JSON.parse(raw) : null;
-};
-
 export const authService = {
   login: async (email, password) => {
-    const { error } = await supabase.functions.invoke('send-register-otp', {
-      body: {
-        mode: 'login',
-        email,
-        password,
-      },
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     });
 
     if (error) throw error;
 
     await apiClient.post('/auth/login', { email, password }).catch(() => {});
-    savePendingRegistration({ email, password, mode: 'login' });
 
     return {
-      requiresOtpVerification: true,
+      user: await mapSupabaseUser(data.user),
+      token: data.session?.access_token,
     };
   },
 
@@ -78,65 +60,25 @@ export const authService = {
     const username = normalizeUsername(name || email.split('@')[0]);
     const avatar = buildAvatarUrl(name || email);
 
-    const { error } = await supabase.functions.invoke('send-register-otp', {
-      body: {
-        mode: 'register',
-        name,
-        email,
-        password,
-        username,
-        avatar,
-      },
-    });
-
-    if (error) {
-      const message =
-        error.message?.includes('Failed to send a request to the Edge Function')
-          ? 'OTP service is not available yet. Start or deploy the Supabase Edge Functions first.'
-          : error.message;
-      throw new Error(message);
-    }
-
-    await apiClient.post('/auth/register', { name, email, password }).catch(() => {});
-    savePendingRegistration({ name, email, password, mode: 'register' });
-
-    return {
-      requiresOtpVerification: true,
-    };
-  },
-
-  verifyOTP: async (email, otp) => {
-    const pendingRegistration = getPendingRegistration();
-    const { error } = await supabase.functions.invoke('verify-register-otp', {
-      body: {
-        email,
-        otp,
-        mode: pendingRegistration?.mode || 'register',
-      },
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          username,
+          avatar,
+        }
+      }
     });
 
     if (error) throw error;
 
-    await apiClient.post('/auth/verify-otp', { email, otp }).catch(() => {});
+    await apiClient.post('/auth/register', { name, email, password }).catch(() => {});
 
-    if (!pendingRegistration?.password) {
-      clearPendingRegistration();
-      return { user: null };
-    }
-
-    const { data, error: loginError } = await supabase.auth.signInWithPassword({
-      email,
-      password: pendingRegistration.password,
-    });
-
-    if (loginError) {
-      throw loginError;
-    }
-
-    clearPendingRegistration();
     return {
-      user: await mapSupabaseUser(data.user),
-      token: data.session?.access_token,
+      user: data.user ? await mapSupabaseUser(data.user) : null,
+      message: 'Please check your email for a verification link.',
     };
   },
 
@@ -165,7 +107,5 @@ export const authService = {
       const user = session?.user ? await mapSupabaseUser(session.user) : null;
       callback(user);
     }),
-
-  getPendingRegistration,
 };
 

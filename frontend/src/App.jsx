@@ -14,7 +14,6 @@ import { DashboardLayout } from './components/layout/DashboardLayout';
 import { LandingPage } from './features/auth/LandingPage';
 import { Login } from './features/auth/Login';
 import { Register } from './features/auth/Register';
-import { OTPVerify } from './features/auth/OTPVerify';
 import { Dashboard } from './features/dashboard/Dashboard';
 import { Analytics } from './features/insights/Insights';
 import { GitHubInsights } from './features/github/GitHubInsights';
@@ -33,7 +32,6 @@ function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/otp-verify" element={<OTPVerify />} />
 
             {/* Protected Routes */}
             <Route 
