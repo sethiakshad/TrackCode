@@ -12,6 +12,8 @@ const leetcodeRoutes = require('./routes/leetcodeRoutes');
 const contestRoutes = require('./routes/contestRoutes');
 const friendRoutes = require('./routes/friendRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const goalRoutes = require('./routes/goalRoutes');
+const bookmarkRoutes = require('./routes/bookmarkRoutes');
 
 const app = express();
 
@@ -39,6 +41,8 @@ app.use('/api/v1/leetcode', leetcodeRoutes);
 app.use('/api/v1/contest', contestRoutes);
 app.use('/api/v1/friends', friendRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/goals', goalRoutes);
+app.use('/api/v1/bookmarks', bookmarkRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
