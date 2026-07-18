@@ -23,15 +23,17 @@ const mapSupabaseUser = async (authUser) => {
     return null;
   }
 
-  const { data: profile } = await supabase
-    .from('users')
-    .select('id, username, email, avatar, is_verified')
-    .eq('id', authUser.id)
-    .maybeSingle();
+  let profile = null;
+  try {
+    const response = await apiClient.get('/profile');
+    profile = response.data?.user || response.data?.profile || response.data;
+  } catch (error) {
+    console.warn('Could not fetch backend profile', error.message);
+  }
 
   return {
     id: authUser.id,
-    name: authUser.user_metadata?.name || profile?.username || authUser.email?.split('@')[0] || 'Developer',
+    name: authUser.user_metadata?.name || profile?.name || profile?.username || authUser.email?.split('@')[0] || 'Developer',
     username: profile?.username || authUser.user_metadata?.username || authUser.email?.split('@')[0] || 'user',
     email: authUser.email,
     avatar: profile?.avatar || authUser.user_metadata?.avatar || buildAvatarUrl(authUser.email || authUser.id),

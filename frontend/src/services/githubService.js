@@ -1,4 +1,4 @@
-import { supabase } from '../utils/supabase';
+import apiClient from '../lib/axios';
 
 const GITHUB_API_BASE = 'https://api.github.com';
 const VERIFICATION_RETRY_COUNT = 5;
@@ -252,50 +252,26 @@ export async function fetchGitHubProfile(username) {
  * Save (upsert) a GitHub profile to Supabase.
  */
 export async function saveGitHubProfile(userId, profileData) {
-  const { error } = await supabase
-    .from('github_profiles')
-    .upsert(
-      {
-        user_id: userId,
-        github_id: profileData.github_id,
-        username: profileData.username,
-        avatar: profileData.avatar,
-        followers: profileData.followers,
-        following: profileData.following,
-        public_repos: profileData.public_repos,
-        total_stars: profileData.total_stars,
-        total_commits: profileData.total_commits,
-        contribution_streak: profileData.contribution_streak,
-        synced_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' }
-    );
-
-  if (error) throw error;
+  // We don't need userId in the body, the backend uses req.userId from the auth token
+  await apiClient.post('/github/connect', profileData);
 }
 
 /**
  * Fetch the stored GitHub profile from Supabase.
  */
 export async function getGitHubProfile(userId) {
-  const { data, error } = await supabase
-    .from('github_profiles')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
-
-  if (error && error.code !== 'PGRST116') throw error;
-  return data ? mapDbRowToProfile(data) : null;
+  try {
+    const response = await apiClient.get('/github/profile');
+    return response.data ? mapDbRowToProfile(response.data) : null;
+  } catch (error) {
+    if (error.response?.status === 404) return null;
+    throw error;
+  }
 }
 
 /**
  * Delete the GitHub profile from Supabase.
  */
 export async function disconnectGitHub(userId) {
-  const { error } = await supabase
-    .from('github_profiles')
-    .delete()
-    .eq('user_id', userId);
-
-  if (error) throw error;
+  await apiClient.delete('/github/disconnect');
 }

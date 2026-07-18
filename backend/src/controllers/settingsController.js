@@ -63,8 +63,32 @@ const disconnectAccount = async (req, res, next) => {
   }
 };
 
+const connectAccount = async (req, res, next) => {
+  try {
+    const { platform } = req.params;
+    const profileData = req.body;
+    
+    if (!profileData || Object.keys(profileData).length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Profile data is required',
+      });
+    }
+
+    const result = await settingsService.connectAccount(req.userId, platform, profileData);
+    res.json({
+      status: 'success',
+      message: `${platform} account connected successfully`,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getSettings,
   updateSettings,
   disconnectAccount,
+  connectAccount,
 };

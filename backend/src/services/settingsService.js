@@ -86,6 +86,8 @@ const disconnectAccount = async (userId, platform) => {
     await prisma.leetcode_profiles.deleteMany({ where: { user_id: userId } });
   } else if (platform === 'codeforces') {
     await prisma.codeforces_profiles.deleteMany({ where: { user_id: userId } });
+  } else if (platform === 'codechef') {
+    await prisma.codechef_profiles.deleteMany({ where: { user_id: userId } });
   } else {
     const error = new Error('Invalid platform specified');
     error.statusCode = 400;
@@ -94,8 +96,66 @@ const disconnectAccount = async (userId, platform) => {
   return { platform, disconnected: true };
 };
 
+/**
+ * Connect a profile (upsert connection row for minor platforms).
+ */
+const connectAccount = async (userId, platform, profileData) => {
+  if (platform === 'codeforces') {
+    return prisma.codeforces_profiles.upsert({
+      where: { user_id: userId },
+      update: {
+        username: profileData.username,
+        rating: profileData.rating,
+        max_rating: profileData.max_rating,
+        rank: profileData.rank,
+        max_rank: profileData.max_rank,
+        problems_solved: profileData.problems_solved,
+        synced_at: new Date(),
+      },
+      create: {
+        user_id: userId,
+        username: profileData.username,
+        rating: profileData.rating || 0,
+        max_rating: profileData.max_rating || 0,
+        rank: profileData.rank || 'Unrated',
+        max_rank: profileData.max_rank || 'Unrated',
+        problems_solved: profileData.problems_solved || 0,
+        synced_at: new Date(),
+      }
+    });
+  } else if (platform === 'codechef') {
+    return prisma.codechef_profiles.upsert({
+      where: { user_id: userId },
+      update: {
+        username: profileData.username,
+        rating: profileData.rating,
+        highest_rating: profileData.highest_rating,
+        stars: profileData.stars,
+        global_rank: profileData.global_rank === 'N/A' ? null : parseInt(profileData.global_rank),
+        country_rank: profileData.country_rank === 'N/A' ? null : parseInt(profileData.country_rank),
+        synced_at: new Date(),
+      },
+      create: {
+        user_id: userId,
+        username: profileData.username,
+        rating: profileData.rating || 0,
+        highest_rating: profileData.highest_rating || 0,
+        stars: profileData.stars || '1★',
+        global_rank: profileData.global_rank === 'N/A' ? null : parseInt(profileData.global_rank),
+        country_rank: profileData.country_rank === 'N/A' ? null : parseInt(profileData.country_rank),
+        synced_at: new Date(),
+      }
+    });
+  } else {
+    const error = new Error('Invalid platform specified or platform requires dedicated service (e.g., github, leetcode)');
+    error.statusCode = 400;
+    throw error;
+  }
+};
+
 module.exports = {
   getSettings,
   updateSettings,
   disconnectAccount,
+  connectAccount,
 };

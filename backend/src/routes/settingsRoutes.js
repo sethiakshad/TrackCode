@@ -8,6 +8,7 @@ router.use(authenticate);
 
 router.get('/', settingsController.getSettings);
 router.patch('/', settingsController.updateSettings);
+router.post('/accounts/:platform', settingsController.connectAccount);
 router.delete('/accounts/:platform', settingsController.disconnectAccount);
 
 module.exports = router;

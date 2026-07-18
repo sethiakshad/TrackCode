@@ -93,6 +93,18 @@ const getFriendList = async (req, res, next) => {
   }
 };
 
+const getFriendRequests = async (req, res, next) => {
+  try {
+    const list = await friendService.getFriendRequests(req.userId);
+    res.json({
+      status: 'success',
+      data: list,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const searchUsers = async (req, res, next) => {
   try {
     const { q } = req.query;
@@ -143,6 +155,7 @@ module.exports = {
   rejectFriendRequest,
   removeFriend,
   getFriendList,
+  getFriendRequests,
   searchUsers,
   getFriendsActivity,
   getLeaderboard,

@@ -1,4 +1,4 @@
-import { supabase } from '../utils/supabase';
+import apiClient from '../lib/axios';
 
 /**
  * Fetch a CodeChef profile from a community API wrapper.
@@ -65,57 +65,22 @@ export async function fetchCodechefProfile(username) {
  * Save (upsert) a CodeChef profile to Supabase.
  */
 export async function saveCodechefProfile(userId, profileData) {
-  const { error } = await supabase
-    .from('codechef_profiles')
-    .upsert(
-      {
-        user_id: userId,
-        username: profileData.username,
-        rating: profileData.rating,
-        stars: profileData.stars,
-        global_rank: profileData.global_rank === 'N/A' ? null : parseInt(profileData.global_rank),
-        country_rank: profileData.country_rank === 'N/A' ? null : parseInt(profileData.country_rank),
-        highest_rating: profileData.highest_rating,
-        synced_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' }
-    );
-
-  if (error) throw error;
+  await apiClient.post('/settings/accounts/codechef', profileData);
 }
 
 /**
  * Fetch the stored CodeChef profile from Supabase.
  */
 export async function getCodechefProfile(userId) {
-  const { data, error } = await supabase
-    .from('codechef_profiles')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
-
-  if (error && error.code !== 'PGRST116') throw error;
-  
-  if (data) {
-    // Map DB row to profile shape expected by UI
-    return {
-      ...data,
-      global_rank: data.global_rank || 'N/A',
-      country_rank: data.country_rank || 'N/A'
-    };
-  }
-  
-  return null;
+  const response = await apiClient.get('/settings');
+  const cc = response.data?.connectedAccounts?.codechef;
+  if (!cc) return null;
+  return { username: cc.username };
 }
 
 /**
  * Delete the CodeChef profile from Supabase.
  */
 export async function disconnectCodechef(userId) {
-  const { error } = await supabase
-    .from('codechef_profiles')
-    .delete()
-    .eq('user_id', userId);
-
-  if (error) throw error;
+  await apiClient.delete('/settings/accounts/codechef');
 }

@@ -1,4 +1,4 @@
-import { supabase } from '../utils/supabase';
+import apiClient from '../lib/axios';
 
 const CF_API_BASE = 'https://codeforces.com/api';
 
@@ -66,47 +66,27 @@ export async function fetchCodeforcesProfile(username) {
  * Save (upsert) a Codeforces profile to Supabase.
  */
 export async function saveCodeforcesProfile(userId, profileData) {
-  const { error } = await supabase
-    .from('codeforces_profiles')
-    .upsert(
-      {
-        user_id: userId,
-        username: profileData.username,
-        rating: profileData.rating,
-        max_rating: profileData.max_rating,
-        rank: profileData.rank,
-        max_rank: profileData.max_rank,
-        problems_solved: profileData.problems_solved,
-        synced_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' }
-    );
-
-  if (error) throw error;
+  await apiClient.post('/settings/accounts/codeforces', profileData);
 }
 
 /**
  * Fetch the stored Codeforces profile from Supabase.
  */
 export async function getCodeforcesProfile(userId) {
-  const { data, error } = await supabase
-    .from('codeforces_profiles')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
-
-  if (error && error.code !== 'PGRST116') throw error;
-  return data || null;
+  // We can just rely on the settings endpoint for status, but if we need the full profile data, 
+  // the frontend fetches from CF API directly after loading the username from settings.
+  // We'll return null to force re-fetch if we don't have a dedicated GET endpoint for CF profile yet,
+  // Or actually, wait. Let's just fetch it via settings api.
+  const response = await apiClient.get('/settings');
+  const cf = response.data?.connectedAccounts?.codeforces;
+  if (!cf) return null;
+  // If we just need the username to refetch, we can return the mock shape
+  return { username: cf.username };
 }
 
 /**
  * Delete the Codeforces profile from Supabase.
  */
 export async function disconnectCodeforces(userId) {
-  const { error } = await supabase
-    .from('codeforces_profiles')
-    .delete()
-    .eq('user_id', userId);
-
-  if (error) throw error;
+  await apiClient.delete('/settings/accounts/codeforces');
 }

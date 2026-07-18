@@ -181,6 +181,31 @@ const getFriendList = async (userId) => {
 };
 
 /**
+ * Fetch incoming friend requests for current user.
+ */
+const getFriendRequests = async (userId) => {
+  const requests = await prisma.friend_requests.findMany({
+    where: { receiver: userId, status: 'pending' },
+    include: {
+      users_friend_requests_senderTousers: {
+        select: {
+          id: true,
+          username: true,
+          avatar: true,
+        },
+      },
+    },
+  });
+
+  return requests.map(r => ({
+    requestId: r.id,
+    senderId: r.sender,
+    name: r.users_friend_requests_senderTousers?.username,
+    avatar: r.users_friend_requests_senderTousers?.avatar,
+  }));
+};
+
+/**
  * Search users by username (excluding current user and existing friends).
  */
 const searchUsers = async (userId, query) => {
@@ -289,6 +314,7 @@ module.exports = {
   rejectFriendRequest,
   removeFriend,
   getFriendList,
+  getFriendRequests,
   searchUsers,
   getFriendsActivity,
   getLeaderboard,

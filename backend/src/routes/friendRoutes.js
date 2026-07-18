@@ -11,6 +11,7 @@ router.post('/accept', friendController.acceptFriendRequest);
 router.post('/reject', friendController.rejectFriendRequest);
 router.post('/remove', friendController.removeFriend);
 router.get('/list', friendController.getFriendList);
+router.get('/requests', friendController.getFriendRequests);
 router.get('/search', friendController.searchUsers);
 router.get('/activity', friendController.getFriendsActivity);
 router.get('/leaderboard', friendController.getLeaderboard);

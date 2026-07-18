@@ -1,4 +1,4 @@
-import { supabase } from '../utils/supabase';
+import apiClient from '../lib/axios';
 
 const LEETCODE_API_BASE = 'https://alfa-leetcode-api.onrender.com';
 const VERIFICATION_RETRY_COUNT = 5;
@@ -156,24 +156,7 @@ export async function fetchLeetCodeProfile(username) {
  * @param {object} profileData - Normalized profile data from fetchLeetCodeProfile
  */
 export async function saveLeetCodeProfile(userId, profileData) {
-  const { error } = await supabase
-    .from('leetcode_profiles')
-    .upsert(
-      {
-        user_id: userId,
-        username: profileData.username,
-        ranking: profileData.ranking,
-        contest_rating: profileData.contest_rating,
-        problems_solved: profileData.problems_solved,
-        easy: profileData.easy,
-        medium: profileData.medium,
-        hard: profileData.hard,
-        synced_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' }
-    );
-
-  if (error) throw error;
+  await apiClient.post('/leetcode/connect', profileData);
 }
 
 /**
@@ -182,14 +165,13 @@ export async function saveLeetCodeProfile(userId, profileData) {
  * @returns {Promise<object|null>}
  */
 export async function getLeetCodeProfile(userId) {
-  const { data, error } = await supabase
-    .from('leetcode_profiles')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
-
-  if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows
-  return data || null;
+  try {
+    const response = await apiClient.get('/leetcode/profile');
+    return response.data || null;
+  } catch (error) {
+    if (error.response?.status === 404) return null;
+    throw error;
+  }
 }
 
 /**
@@ -197,10 +179,5 @@ export async function getLeetCodeProfile(userId) {
  * @param {string} userId
  */
 export async function disconnectLeetCode(userId) {
-  const { error } = await supabase
-    .from('leetcode_profiles')
-    .delete()
-    .eq('user_id', userId);
-
-  if (error) throw error;
+  await apiClient.delete('/leetcode/disconnect');
 }

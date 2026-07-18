@@ -1,58 +1,33 @@
-import { supabase } from '../../utils/supabase';
+import apiClient from '../axios';
 
 /**
  * Get user's notifications.
  */
-export async function getNotifications(userId) {
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('id, title, message, type, read, created_at')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(30);
-
-  if (error) throw error;
-  return data ?? [];
+export async function getNotifications() {
+  const response = await apiClient.get('/notifications');
+  return response.data;
 }
 
 /**
  * Mark a single notification as read.
  */
 export async function markAsRead(notificationId) {
-  const { data, error } = await supabase
-    .from('notifications')
-    .update({ read: true })
-    .eq('id', notificationId)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
+  const response = await apiClient.patch(`/notifications/${notificationId}/read`);
+  return response.data;
 }
 
 /**
  * Mark all notifications as read.
  */
-export async function markAllAsRead(userId) {
-  const { data, error } = await supabase
-    .from('notifications')
-    .update({ read: true })
-    .eq('user_id', userId)
-    .select();
-
-  if (error) throw error;
-  return data;
+export async function markAllAsRead() {
+  const response = await apiClient.patch('/notifications/read-all');
+  return response.data;
 }
 
 /**
  * Delete a notification.
  */
 export async function deleteNotification(notificationId) {
-  const { error } = await supabase
-    .from('notifications')
-    .delete()
-    .eq('id', notificationId);
-
-  if (error) throw error;
+  await apiClient.delete(`/notifications/${notificationId}`);
   return true;
 }
