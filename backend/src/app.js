@@ -4,6 +4,8 @@ const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
 const errorHandler = require('./middleware/errorHandler');
 const authRoutes = require('./routes/authRoutes');
+const profileRoutes = require('./routes/profileRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 const app = express();
 
@@ -23,6 +25,8 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/profile', profileRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
