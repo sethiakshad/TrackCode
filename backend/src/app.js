@@ -9,6 +9,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const githubRoutes = require('./routes/githubRoutes');
 const leetcodeRoutes = require('./routes/leetcodeRoutes');
+const contestRoutes = require('./routes/contestRoutes');
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/github', githubRoutes);
 app.use('/api/v1/leetcode', leetcodeRoutes);
+app.use('/api/v1/contest', contestRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
