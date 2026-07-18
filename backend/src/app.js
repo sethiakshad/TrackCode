@@ -14,6 +14,7 @@ const friendRoutes = require('./routes/friendRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const goalRoutes = require('./routes/goalRoutes');
 const bookmarkRoutes = require('./routes/bookmarkRoutes');
+const aiRoutes = require('./routes/aiRoutes');
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use('/api/v1/friends', friendRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/goals', goalRoutes);
 app.use('/api/v1/bookmarks', bookmarkRoutes);
+app.use('/api/v1/ai', aiRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
