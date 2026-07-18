@@ -15,6 +15,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const goalRoutes = require('./routes/goalRoutes');
 const bookmarkRoutes = require('./routes/bookmarkRoutes');
 const aiRoutes = require('./routes/aiRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/goals', goalRoutes);
 app.use('/api/v1/bookmarks', bookmarkRoutes);
 app.use('/api/v1/ai', aiRoutes);
+app.use('/api/v1/settings', settingsRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
