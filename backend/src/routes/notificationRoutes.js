@@ -8,9 +8,11 @@ router.use(authenticate);
 
 router.post('/', notificationController.createNotification);
 router.get('/', notificationController.getNotifications);
-router.patch('/read', notificationController.markAsRead);
-router.delete('/:notificationId', notificationController.deleteNotification);
 router.get('/unread-count', notificationController.getUnreadCount);
+router.patch('/read', notificationController.markAsRead);            // legacy: body has notificationId
+router.patch('/read-all', notificationController.markAllAsRead);     // frontend: mark all read
+router.patch('/:notificationId/read', notificationController.markSingleRead); // frontend: mark one read
+router.delete('/:notificationId', notificationController.deleteNotification);
 router.get('/preferences', notificationController.getNotificationPreferences);
 router.patch('/preferences', notificationController.updateNotificationPreferences);
 

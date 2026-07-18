@@ -1,113 +1,110 @@
 import apiClient from '../../lib/axios';
-import { supabase } from '../../utils/supabase';
 
 const buildAvatarUrl = (seed) =>
   `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}`;
 
-const normalizeUsername = (value) => {
-  const base = value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-
-  if (base.length >= 3) {
-    return base.slice(0, 30);
-  }
-
-  return `${base || 'user'}_${Math.random().toString(36).slice(2, 8)}`.slice(0, 30);
-};
-
-const mapSupabaseUser = async (authUser) => {
-  if (!authUser) {
-    return null;
-  }
-
-  let profile = null;
-  try {
-    const response = await apiClient.get('/profile');
-    profile = response.data?.user || response.data?.profile || response.data;
-  } catch (error) {
-    console.warn('Could not fetch backend profile', error.message);
-  }
-
-  return {
-    id: authUser.id,
-    name: authUser.user_metadata?.name || profile?.name || profile?.username || authUser.email?.split('@')[0] || 'Developer',
-    username: profile?.username || authUser.user_metadata?.username || authUser.email?.split('@')[0] || 'user',
-    email: authUser.email,
-    avatar: profile?.avatar || authUser.user_metadata?.avatar || buildAvatarUrl(authUser.email || authUser.id),
-    isVerified: Boolean(profile?.is_verified || authUser.email_confirmed_at),
-  };
-};
-
 export const authService = {
   login: async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) throw error;
-
-    await apiClient.post('/auth/login', { email, password }).catch(() => {});
-
-    return {
-      user: await mapSupabaseUser(data.user),
-      token: data.session?.access_token,
-    };
+    try {
+      const response = await apiClient.post('/auth/login', { email, password });
+      const { accessToken, user } = response.data;
+      
+      if (accessToken) {
+        localStorage.setItem('accessToken', accessToken);
+      }
+      
+      return {
+        user: {
+          id: user.id,
+          name: user.name || user.email.split('@')[0],
+          username: user.email.split('@')[0],
+          email: user.email,
+          avatar: user.avatar || buildAvatarUrl(user.email),
+          isVerified: true,
+        },
+        token: accessToken,
+      };
+    } catch (error) {
+      const data = error.response?.data;
+      let msg = data?.message || 'Login failed. Please try again.';
+      if (data?.errors?.length) {
+        msg = data.errors.map(e => e.message).join('. ');
+      }
+      throw new Error(msg);
+    }
   },
 
   register: async (name, email, password) => {
-    const username = normalizeUsername(name || email.split('@')[0]);
-    const avatar = buildAvatarUrl(name || email);
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          name,
-          username,
-          avatar,
-        }
+    try {
+      const response = await apiClient.post('/auth/register', { name, email, password });
+      const { accessToken, user } = response.data;
+      
+      if (accessToken) {
+        localStorage.setItem('accessToken', accessToken);
       }
-    });
-
-    if (error) throw error;
-
-    await apiClient.post('/auth/register', { name, email, password }).catch(() => {});
-
-    return {
-      user: data.user ? await mapSupabaseUser(data.user) : null,
-      message: 'Please check your email for a verification link.',
-    };
+      
+      return {
+        user: {
+          id: user.id,
+          name: user.name || user.email.split('@')[0],
+          username: user.email.split('@')[0],
+          email: user.email,
+          avatar: user.avatar || buildAvatarUrl(user.email),
+          isVerified: true,
+        },
+        message: response.message,
+      };
+    } catch (error) {
+      // The interceptor does NOT unwrap error responses, so error.response.data is the raw body
+      const body = error.response?.data;
+      const msg = body?.message || 'Registration failed. Please try again.';
+      throw new Error(msg);
+    }
   },
 
   logout: async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-
-    await apiClient.post('/auth/logout').catch(() => {});
+    try {
+      await apiClient.post('/auth/logout');
+    } catch (err) {
+      // ignore
+    } finally {
+      localStorage.removeItem('accessToken');
+    }
     return true;
   },
 
   getSessionUser: async () => {
-    const {
-      data: { session },
-      error,
-    } = await supabase.auth.getSession();
+    const token = localStorage.getItem('accessToken');
+    if (!token) return null;
 
-    if (error) throw error;
-    if (!session?.user) return null;
-
-    return mapSupabaseUser(session.user);
+    try {
+      // Validate token by fetching the profile
+      const response = await apiClient.get('/profile');
+      const profile = response.data || response;
+      
+      return {
+        id: profile.id,
+        name: profile.name || profile.username || profile.email.split('@')[0],
+        username: profile.username || profile.email.split('@')[0],
+        email: profile.email,
+        avatar: profile.avatar || buildAvatarUrl(profile.email),
+        isVerified: true,
+      };
+    } catch (error) {
+      localStorage.removeItem('accessToken');
+      return null;
+    }
   },
 
-  onAuthStateChange: (callback) =>
-    supabase.auth.onAuthStateChange(async (_event, session) => {
-      const user = session?.user ? await mapSupabaseUser(session.user) : null;
-      callback(user);
-    }),
+  // This is no longer needed since we are not using Supabase real-time auth state,
+  // but we keep the method signature to avoid breaking AuthContext.
+  onAuthStateChange: (callback) => {
+    return {
+      data: {
+        subscription: {
+          unsubscribe: () => {},
+        },
+      },
+    };
+  },
 };
-

@@ -179,5 +179,5 @@ export async function getLeetCodeProfile(userId) {
  * @param {string} userId
  */
 export async function disconnectLeetCode(userId) {
-  await apiClient.delete('/leetcode/disconnect');
+  await apiClient.delete('/settings/accounts/leetcode');
 }

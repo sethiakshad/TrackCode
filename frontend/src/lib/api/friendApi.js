@@ -54,5 +54,5 @@ export async function removeFriend(friendId) {
  */
 export async function getFriendsLeaderboard() {
   const response = await apiClient.get('/friends/leaderboard');
-  return response.data;
+  return response.data?.data || [];
 }

@@ -23,12 +23,12 @@ export const FriendsLeaderboard = () => {
         // Map the real data to format expected by UI
         const mappedData = data.map((u, index) => ({
           rank: index + 1,
-          name: u.name,
-          solved: Math.floor(u.xp / 10) || 0, // Mock calculation based on XP
-          streak: u.level || 0, // Using level for streak
-          rating: 1200 + Math.floor(u.xp / 5), // Mock rating based on XP
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name.replace(/\s+/g, '')}`,
-          isCurrentUser: u.isCurrentUser
+          name: u.username,
+          solved: u.leetcodeSolved || 0,
+          streak: 0, // backend doesn't provide streak directly here
+          rating: u.totalPoints || 0,
+          avatar: u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`,
+          isCurrentUser: u.userId === user.id
         }));
 
         setLeaderboardUsers(mappedData);

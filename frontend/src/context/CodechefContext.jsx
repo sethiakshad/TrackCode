@@ -9,12 +9,6 @@ import {
 
 const CodechefContext = createContext(null);
 
-const CC_STORAGE_KEY = 'trackcode_codechef_profile';
-
-function isDemoUser(user) {
-  return user?.id?.startsWith('demo') || user?.id === 'demo_001';
-}
-
 export const CodechefProvider = ({ children }) => {
   const { user } = useAuth();
   const [profile, setProfile] = useState(null);
@@ -34,22 +28,10 @@ export const CodechefProvider = ({ children }) => {
       setIsLoading(true);
       setError(null);
       try {
-        if (isDemoUser(user)) {
-          const stored = localStorage.getItem(CC_STORAGE_KEY);
-          if (stored) {
-            setProfile(JSON.parse(stored));
-          }
-        } else {
-          const data = await getCodechefProfile(user.id);
-          if (data) {
-            setProfile(data);
-            localStorage.setItem(CC_STORAGE_KEY, JSON.stringify(data));
-          }
-        }
+        const data = await getCodechefProfile(user.id);
+        setProfile(data || null);
       } catch (err) {
         console.error('Failed to load Codechef profile:', err);
-        const stored = localStorage.getItem(CC_STORAGE_KEY);
-        if (stored) setProfile(JSON.parse(stored));
       } finally {
         setIsLoading(false);
       }
@@ -60,17 +42,17 @@ export const CodechefProvider = ({ children }) => {
 
   const connectCodechef = useCallback(async (username) => {
     setError(null);
+
     const profileData = await fetchCodechefProfile(username);
 
-    if (user && !isDemoUser(user)) {
+    if (user) {
       try {
         await saveCodechefProfile(user.id, profileData);
       } catch (err) {
-        console.warn('Supabase write failed, falling back to localStorage:', err.message);
+        console.warn('Backend write failed:', err.message);
       }
     }
 
-    localStorage.setItem(CC_STORAGE_KEY, JSON.stringify(profileData));
     setProfile(profileData);
     return profileData;
   }, [user]);
@@ -78,13 +60,12 @@ export const CodechefProvider = ({ children }) => {
   const disconnect = useCallback(async () => {
     setError(null);
     try {
-      if (user && !isDemoUser(user)) {
+      if (user) {
         await disconnectCodechefDB(user.id);
       }
     } catch (err) {
-      console.warn('Supabase delete failed:', err.message);
+      console.warn('Backend delete failed:', err.message);
     }
-    localStorage.removeItem(CC_STORAGE_KEY);
     setProfile(null);
   }, [user]);
 
@@ -95,15 +76,14 @@ export const CodechefProvider = ({ children }) => {
     try {
       const freshData = await fetchCodechefProfile(profile.username);
 
-      if (user && !isDemoUser(user)) {
+      if (user) {
         try {
           await saveCodechefProfile(user.id, freshData);
         } catch (err) {
-          console.warn('Supabase refresh-write failed:', err.message);
+          console.warn('Backend refresh-write failed:', err.message);
         }
       }
 
-      localStorage.setItem(CC_STORAGE_KEY, JSON.stringify(freshData));
       setProfile(freshData);
     } catch (err) {
       setError(err.message);

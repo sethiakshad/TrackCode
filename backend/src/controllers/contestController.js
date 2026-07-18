@@ -84,6 +84,15 @@ const getAccuracyAnalysis = async (req, res, next) => {
   }
 };
 
+const getUpcomingContests = async (req, res, next) => {
+  try {
+    const data = await contestService.getUpcomingContests(req.userId);
+    res.json({ status: 'success', data });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getContestHistory,
   getContestStatistics,
@@ -92,4 +101,5 @@ module.exports = {
   getContestGraphData,
   getSpeedAnalysis,
   getAccuracyAnalysis,
+  getUpcomingContests,
 };

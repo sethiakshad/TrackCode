@@ -52,6 +52,30 @@ const markAsRead = async (req, res, next) => {
   }
 };
 
+// Handles PATCH /notifications/:notificationId/read (called by frontend)
+const markSingleRead = async (req, res, next) => {
+  try {
+    const { notificationId } = req.params;
+    await notificationService.markAsRead(req.userId, notificationId);
+    res.json({
+      status: 'success',
+      message: 'Notification marked as read',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Handles PATCH /notifications/read-all (called by frontend)
+const markAllAsRead = async (req, res, next) => {
+  try {
+    await notificationService.markAsRead(req.userId, null);
+    res.json({ status: 'success', message: 'All notifications marked as read' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const deleteNotification = async (req, res, next) => {
   try {
     const { notificationId } = req.params;
@@ -114,6 +138,8 @@ module.exports = {
   createNotification,
   getNotifications,
   markAsRead,
+  markSingleRead,
+  markAllAsRead,
   deleteNotification,
   getUnreadCount,
   getNotificationPreferences,

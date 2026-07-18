@@ -12,7 +12,7 @@ export async function getDashboardSummary() {
  * Get the last 7 days of daily stats for the activity chart.
  */
 export async function getWeeklyActivity() {
-  const response = await apiClient.get('/dashboard/weekly-activity');
+  const response = await apiClient.get('/dashboard/weekly-progress');
   return response.data;
 }
 

@@ -9,12 +9,6 @@ import {
 
 const GitHubContext = createContext(null);
 
-const GH_STORAGE_KEY = 'trackcode_github_profile';
-
-function isDemoUser(user) {
-  return user?.id?.startsWith('demo') || user?.id === 'demo_001';
-}
-
 export const GitHubProvider = ({ children }) => {
   const { user } = useAuth();
   const [profile, setProfile] = useState(null);
@@ -34,22 +28,10 @@ export const GitHubProvider = ({ children }) => {
       setIsLoading(true);
       setError(null);
       try {
-        if (isDemoUser(user)) {
-          const stored = localStorage.getItem(GH_STORAGE_KEY);
-          if (stored) {
-            setProfile(JSON.parse(stored));
-          }
-        } else {
-          const data = await getGitHubProfile(user.id);
-          if (data) {
-            setProfile(data);
-            localStorage.setItem(GH_STORAGE_KEY, JSON.stringify(data));
-          }
-        }
+        const data = await getGitHubProfile(user.id);
+        setProfile(data || null);
       } catch (err) {
         console.error('Failed to load GitHub profile:', err);
-        const stored = localStorage.getItem(GH_STORAGE_KEY);
-        if (stored) setProfile(JSON.parse(stored));
       } finally {
         setIsLoading(false);
       }
@@ -63,15 +45,14 @@ export const GitHubProvider = ({ children }) => {
 
     const profileData = await fetchGitHubProfile(username);
 
-    if (user && !isDemoUser(user)) {
+    if (user) {
       try {
         await saveGitHubProfile(user.id, profileData);
       } catch (err) {
-        console.warn('Supabase write failed, falling back to localStorage:', err.message);
+        console.warn('Backend write failed:', err.message);
       }
     }
 
-    localStorage.setItem(GH_STORAGE_KEY, JSON.stringify(profileData));
     setProfile(profileData);
 
     return profileData;
@@ -80,13 +61,12 @@ export const GitHubProvider = ({ children }) => {
   const disconnect = useCallback(async () => {
     setError(null);
     try {
-      if (user && !isDemoUser(user)) {
+      if (user) {
         await disconnectGitHubDB(user.id);
       }
     } catch (err) {
-      console.warn('Supabase delete failed:', err.message);
+      console.warn('Backend delete failed:', err.message);
     }
-    localStorage.removeItem(GH_STORAGE_KEY);
     setProfile(null);
   }, [user]);
 
@@ -97,15 +77,14 @@ export const GitHubProvider = ({ children }) => {
     try {
       const freshData = await fetchGitHubProfile(profile.username);
 
-      if (user && !isDemoUser(user)) {
+      if (user) {
         try {
           await saveGitHubProfile(user.id, freshData);
         } catch (err) {
-          console.warn('Supabase refresh-write failed:', err.message);
+          console.warn('Backend refresh-write failed:', err.message);
         }
       }
 
-      localStorage.setItem(GH_STORAGE_KEY, JSON.stringify(freshData));
       setProfile(freshData);
     } catch (err) {
       setError(err.message);

@@ -8,6 +8,7 @@ router.use(authenticate);
 
 router.get('/topic-mastery', analyticsController.getTopicMastery);
 router.get('/difficulty', analyticsController.getDifficultyDistribution);
+router.get('/difficulty-distribution', analyticsController.getDifficultyDistribution); // alias
 router.get('/acceptance-rate', analyticsController.getAcceptanceRate);
 router.get('/heatmap', analyticsController.getHeatmapData);
 router.get('/weekly', analyticsController.getWeeklyStatistics);
@@ -15,5 +16,6 @@ router.get('/monthly', analyticsController.getMonthlyStatistics);
 router.get('/radar', analyticsController.getRadarChartData);
 router.get('/progress', analyticsController.getProgressGraph);
 router.get('/contest-performance', analyticsController.getContestPerformance);
+
 
 module.exports = router;

@@ -14,7 +14,7 @@ export async function updateProfile(profileData) {
 export async function getConnectedHandles() {
   const response = await apiClient.get('/settings');
   // API returns { data: { settings, connectedAccounts: { github, leetcode, codeforces, codechef } } }
-  return response.data?.connectedAccounts || {
+  return response.data?.data?.connectedAccounts || {
     github: null,
     leetcode: null,
     codeforces: null,

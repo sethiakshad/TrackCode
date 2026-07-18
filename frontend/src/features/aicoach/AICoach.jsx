@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Bot, User, Send, Sparkles, Brain, Award, ArrowRight, Zap, Target } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getAiRecommendations, getAiFeedbackSummary } from '../../lib/api/coachApi';
+import { getAiRecommendations, getAiFeedbackSummary, sendChatMessage } from '../../lib/api/coachApi';
 
 export const AICoach = () => {
   const { user } = useAuth();
@@ -57,17 +57,15 @@ export const AICoach = () => {
     setInputValue('');
     setIsTyping(true);
 
-    // Simulate AI response after delay (mocking the chat completion API)
-    setTimeout(() => {
+    // Call the actual AI chat API
+    sendChatMessage(text).then((res) => {
       setIsTyping(false);
-      let responseText = "Based on your latest contest stats, your mastery is dropping. I suggest focusing on building core conceptual intuition.";
-      if (text.toLowerCase().includes('contest')) {
-        responseText = "To prepare for upcoming contests: Practice 3 Medium problems in a timed 45-minute window. Focus on accuracy over speed to minimize Wrong Answer penalties.";
-      } else if (text.toLowerCase().includes('dp') || text.toLowerCase().includes('dynamic programming')) {
-         responseText = "Your DP score is low. I recommend starting with classic problems: Knapsack, Longest Common Subsequence, and Matrix Chain Multiplication.";
-      }
+      const responseText = res?.data?.response || res?.data?.message || "I'm having trouble analyzing that right now.";
       setMessages(prev => [...prev, { role: 'assistant', content: responseText }]);
-    }, 1200);
+    }).catch((err) => {
+      setIsTyping(false);
+      setMessages(prev => [...prev, { role: 'assistant', content: "An error occurred while connecting to the AI service." }]);
+    });
   };
 
   useEffect(() => {

@@ -9,12 +9,6 @@ import {
 
 const CodeforcesContext = createContext(null);
 
-const CF_STORAGE_KEY = 'trackcode_codeforces_profile';
-
-function isDemoUser(user) {
-  return user?.id?.startsWith('demo') || user?.id === 'demo_001';
-}
-
 export const CodeforcesProvider = ({ children }) => {
   const { user } = useAuth();
   const [profile, setProfile] = useState(null);
@@ -34,22 +28,10 @@ export const CodeforcesProvider = ({ children }) => {
       setIsLoading(true);
       setError(null);
       try {
-        if (isDemoUser(user)) {
-          const stored = localStorage.getItem(CF_STORAGE_KEY);
-          if (stored) {
-            setProfile(JSON.parse(stored));
-          }
-        } else {
-          const data = await getCodeforcesProfile(user.id);
-          if (data) {
-            setProfile(data);
-            localStorage.setItem(CF_STORAGE_KEY, JSON.stringify(data));
-          }
-        }
+        const data = await getCodeforcesProfile(user.id);
+        setProfile(data || null);
       } catch (err) {
         console.error('Failed to load Codeforces profile:', err);
-        const stored = localStorage.getItem(CF_STORAGE_KEY);
-        if (stored) setProfile(JSON.parse(stored));
       } finally {
         setIsLoading(false);
       }
@@ -60,17 +42,17 @@ export const CodeforcesProvider = ({ children }) => {
 
   const connectCodeforces = useCallback(async (username) => {
     setError(null);
+
     const profileData = await fetchCodeforcesProfile(username);
 
-    if (user && !isDemoUser(user)) {
+    if (user) {
       try {
         await saveCodeforcesProfile(user.id, profileData);
       } catch (err) {
-        console.warn('Supabase write failed, falling back to localStorage:', err.message);
+        console.warn('Backend write failed:', err.message);
       }
     }
 
-    localStorage.setItem(CF_STORAGE_KEY, JSON.stringify(profileData));
     setProfile(profileData);
     return profileData;
   }, [user]);
@@ -78,13 +60,12 @@ export const CodeforcesProvider = ({ children }) => {
   const disconnect = useCallback(async () => {
     setError(null);
     try {
-      if (user && !isDemoUser(user)) {
+      if (user) {
         await disconnectCodeforcesDB(user.id);
       }
     } catch (err) {
-      console.warn('Supabase delete failed:', err.message);
+      console.warn('Backend delete failed:', err.message);
     }
-    localStorage.removeItem(CF_STORAGE_KEY);
     setProfile(null);
   }, [user]);
 
@@ -95,15 +76,14 @@ export const CodeforcesProvider = ({ children }) => {
     try {
       const freshData = await fetchCodeforcesProfile(profile.username);
 
-      if (user && !isDemoUser(user)) {
+      if (user) {
         try {
           await saveCodeforcesProfile(user.id, freshData);
         } catch (err) {
-          console.warn('Supabase refresh-write failed:', err.message);
+          console.warn('Backend refresh-write failed:', err.message);
         }
       }
 
-      localStorage.setItem(CF_STORAGE_KEY, JSON.stringify(freshData));
       setProfile(freshData);
     } catch (err) {
       setError(err.message);

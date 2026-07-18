@@ -158,6 +158,19 @@ const getAccuracyAnalysis = async (userId) => {
   }));
 };
 
+const getUpcomingContests = async () => {
+  const now = new Date();
+  return prisma.contests.findMany({
+    where: {
+      start_time: {
+        gte: now,
+      },
+    },
+    orderBy: { start_time: 'asc' },
+    take: 10,
+  });
+};
+
 module.exports = {
   getContestHistory,
   getContestStatistics,
@@ -166,4 +179,6 @@ module.exports = {
   getContestGraphData,
   getSpeedAnalysis,
   getAccuracyAnalysis,
+  getUpcomingContests,
 };
+

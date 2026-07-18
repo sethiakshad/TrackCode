@@ -273,5 +273,5 @@ export async function getGitHubProfile(userId) {
  * Delete the GitHub profile from Supabase.
  */
 export async function disconnectGitHub(userId) {
-  await apiClient.delete('/github/disconnect');
+  await apiClient.delete('/settings/accounts/github');
 }

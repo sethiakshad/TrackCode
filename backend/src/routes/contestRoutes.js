@@ -13,5 +13,6 @@ router.get('/predictions', contestController.getContestPredictions);
 router.get('/graph', contestController.getContestGraphData);
 router.get('/speed-analysis', contestController.getSpeedAnalysis);
 router.get('/accuracy-analysis', contestController.getAccuracyAnalysis);
+router.get('/upcoming', contestController.getUpcomingContests);
 
 module.exports = router;

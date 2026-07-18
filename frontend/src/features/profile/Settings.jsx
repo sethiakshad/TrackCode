@@ -21,7 +21,7 @@ const Github = (props) => (
 );
 
 export const Settings = () => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { profile: lcProfile, isConnected: isConnectedLeetCode, connectLeetCode, disconnect: disconnectLeetCode } = useLeetCode();
   const { profile: ghProfile, isConnected: isConnectedGitHub, connectGitHub, disconnect: disconnectGitHub } = useGitHub();
   const { profile: cfProfile, isConnected: isConnectedCodeforces, connectCodeforces, disconnect: disconnectCodeforces } = useCodeforces();
@@ -43,7 +43,8 @@ export const Settings = () => {
     setIsSaving(true);
     try {
       const { updateProfile } = await import('../../lib/api/settingsApi');
-      await updateProfile(user.id, { name });
+      await updateProfile({ username: name });
+      await refreshUser();
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (err) {

@@ -16,7 +16,7 @@ import { ConnectCodeforcesModal } from '../../components/ui/ConnectCodeforcesMod
 import { ConnectCodechefModal } from '../../components/ui/ConnectCodechefModal';
 import { getDashboardSummary, getWeeklyActivity, getUpcomingContests } from '../../lib/api/dashboardApi';
 import { getGoals } from '../../lib/api/goalsApi';
-import { getTopicMastery } from '../../lib/api/analyticsApi';
+import { getTopicMastery, getHeatmapData } from '../../lib/api/analyticsApi';
 import { getAiFeedbackSummary } from '../../lib/api/coachApi';
 
 
@@ -121,6 +121,7 @@ export const Dashboard = () => {
   const [dailyGoal, setDailyGoal] = useState({ solved: 0, target: 5 });
   const [aiFeedback, setAiFeedback] = useState("");
   const [weakTopics, setWeakTopics] = useState([]);
+  const [heatmapDays, setHeatmapDays] = useState([]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -141,15 +142,13 @@ export const Dashboard = () => {
         setUpcomingEvents(contests);
         setAiFeedback(feedback);
         
-        // Setup weak topics (topics with score < 70)
         const sortedWeak = topics
           .filter(t => t.A < 70)
           .map(t => ({ name: t.subject, mastery: t.A }))
           .slice(0, 2);
-        setWeakTopics(sortedWeak.length > 0 ? sortedWeak : [
-          { name: 'Dynamic Programming', mastery: 45 },
-          { name: 'Graphs (DFS/BFS)', mastery: 62 }
-        ]);
+        
+        // Use real data, but if absolutely empty, we show a 'No weak topics detected' message in UI instead of mock
+        setWeakTopics(sortedWeak);
 
         // Find primary active goal for daily target progress
         const activeGoal = goalsList.find(g => !g.completed);
@@ -159,6 +158,10 @@ export const Dashboard = () => {
             target: activeGoal.target
           });
         }
+        // Fetch heatmap data
+        const heatmapRes = await getHeatmapData();
+        setHeatmapDays(heatmapRes?.length ? heatmapRes : Array.from({ length: 28 }, (_, i) => ({ day: i + 1, level: 0 })));
+
       } catch (err) {
         console.error("Dashboard load failed:", err);
       } finally {
@@ -167,12 +170,6 @@ export const Dashboard = () => {
     };
     loadData();
   }, [user?.id]);
-
-  // Simple calendar generator for Heatmap Preview
-  const heatmapDays = Array.from({ length: 28 }, (_, i) => {
-    const values = [0, 1, 2, 4, 0, 8, 3, 5, 0, 2, 0, 1, 6, 0, 0, 2, 4, 3, 0, 1, 5, 0, 0, 2, 0, 1, 4, 3];
-    return { day: i + 1, level: values[i % values.length] };
-  });
 
 
   return (
