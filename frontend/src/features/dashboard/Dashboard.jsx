@@ -108,6 +108,8 @@ export const Dashboard = () => {
   const { profile: cfProfile, isConnected: isConnectedCodeforces, connectCodeforces, disconnect: disconnectCodeforces, refreshProfile: refreshCF } = useCodeforces();
   const { profile: ccProfile, isConnected: isConnectedCodechef, connectCodechef, disconnect: disconnectCodechef, refreshProfile: refreshCC } = useCodechef();
   
+  const hasConnectedProfiles = Boolean(isConnectedLeetCode || isConnectedGitHub || isConnectedCodeforces || isConnectedCodechef);
+
   const [loading, setLoading] = useState(true);
   const [chartFilter, setChartFilter] = useState('7d');
   const [showLCModal, setShowLCModal] = useState(false);
@@ -295,9 +297,13 @@ export const Dashboard = () => {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard 
           title="Problems Solved" 
-          value={isConnectedLeetCode ? lcProfile.problems_solved.toLocaleString() : '—'} 
-          numericValue={isConnectedLeetCode ? lcProfile.problems_solved : 0}
-          trend={isConnectedLeetCode ? `E:${lcProfile.easy} M:${lcProfile.medium} H:${lcProfile.hard}` : 'Connect LeetCode'}
+          value={hasConnectedProfiles ? ((isConnectedLeetCode ? (lcProfile?.problems_solved || 0) : 0) + (isConnectedCodeforces ? (cfProfile?.problems_solved || 0) : 0) + (isConnectedCodechef ? (ccProfile?.problems_solved || 0) : 0)).toLocaleString() : '—'} 
+          numericValue={hasConnectedProfiles ? ((isConnectedLeetCode ? (lcProfile?.problems_solved || 0) : 0) + (isConnectedCodeforces ? (cfProfile?.problems_solved || 0) : 0) + (isConnectedCodechef ? (ccProfile?.problems_solved || 0) : 0)) : 0}
+          trend={
+            isConnectedLeetCode ? `LC: ${lcProfile?.problems_solved || 0}` :
+            isConnectedCodeforces ? `CF: ${cfProfile?.problems_solved || 0}` :
+            isConnectedCodechef ? `CC: ${ccProfile?.problems_solved || 0}` : 'Connect Profiles'
+          }
           icon={Code2} 
           colorClass="bg-gradient-to-br from-primary-500 to-indigo-600 shadow-lg shadow-primary-500/20"
           delay={0.05}
@@ -305,9 +311,9 @@ export const Dashboard = () => {
         />
         <StatCard 
           title="Coding Streak" 
-          value={isConnectedGitHub ? ghProfile.contribution_streak.toString() : '—'} 
-          numericValue={isConnectedGitHub ? ghProfile.contribution_streak : 0}
-          trend={isConnectedGitHub ? "GitHub streak" : "Connect GitHub"}
+          value={isConnectedGitHub ? (ghProfile?.contribution_streak?.toString() || '1') : (isConnectedLeetCode ? '1' : '—')} 
+          numericValue={isConnectedGitHub ? (ghProfile?.contribution_streak || 1) : (isConnectedLeetCode ? 1 : 0)}
+          trend={isConnectedGitHub ? "GitHub streak" : (hasConnectedProfiles ? "Active streak" : "Connect Profiles")}
           icon={Flame} 
           colorClass="bg-gradient-to-br from-orange-500 to-red-500 shadow-lg shadow-orange-500/20"
           delay={0.1}
@@ -315,9 +321,9 @@ export const Dashboard = () => {
         />
         <StatCard 
           title="GitHub Commits" 
-          value={isConnectedGitHub ? ghProfile.total_commits.toLocaleString() : '—'} 
-          numericValue={isConnectedGitHub ? ghProfile.total_commits : 0}
-          trend={isConnectedGitHub ? `${ghProfile.public_repos} repos · ${ghProfile.total_stars} stars` : 'Connect GitHub'}
+          value={isConnectedGitHub ? (ghProfile?.total_commits?.toLocaleString() || '0') : '—'} 
+          numericValue={isConnectedGitHub ? (ghProfile?.total_commits || 0) : 0}
+          trend={isConnectedGitHub ? `${ghProfile?.public_repos || 0} repos · ${ghProfile?.total_stars || 0} stars` : 'Connect GitHub'}
           icon={GitCommit} 
           colorClass="bg-gradient-to-br from-slate-700 to-slate-900 shadow-lg shadow-slate-700/20"
           delay={0.15}
@@ -325,9 +331,21 @@ export const Dashboard = () => {
         />
         <StatCard 
           title="Contest Rating" 
-          value={isConnectedLeetCode && lcProfile.contest_rating ? lcProfile.contest_rating.toLocaleString() : '—'} 
-          numericValue={isConnectedLeetCode ? (lcProfile.contest_rating || 0) : 0}
-          trend={isConnectedLeetCode && lcProfile.ranking ? `Rank #${lcProfile.ranking.toLocaleString()}` : 'Connect LeetCode'}
+          value={
+            isConnectedLeetCode && lcProfile?.contest_rating ? lcProfile.contest_rating.toLocaleString() :
+            isConnectedCodeforces && cfProfile?.rating ? cfProfile.rating.toLocaleString() :
+            isConnectedCodechef && ccProfile?.rating ? ccProfile.rating.toLocaleString() : '—'
+          } 
+          numericValue={
+            isConnectedLeetCode && lcProfile?.contest_rating ? lcProfile.contest_rating :
+            isConnectedCodeforces && cfProfile?.rating ? cfProfile.rating :
+            isConnectedCodechef && ccProfile?.rating ? ccProfile.rating : 0
+          }
+          trend={
+            isConnectedLeetCode && lcProfile?.ranking ? `LC Rank #${lcProfile.ranking.toLocaleString()}` :
+            isConnectedCodeforces && cfProfile?.rank ? `CF: ${cfProfile.rank}` :
+            isConnectedCodechef && ccProfile?.stars ? `CC: ${ccProfile.stars}` : 'Connect Profiles'
+          }
           icon={Trophy} 
           colorClass="bg-gradient-to-br from-cyan-500 to-blue-500 shadow-lg shadow-cyan-500/20"
           delay={0.2}
@@ -361,7 +379,26 @@ export const Dashboard = () => {
               </div>
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {!hasConnectedProfiles ? (
+                <div className="h-[300px] w-full flex flex-col items-center justify-center text-center p-6 rounded-xl border border-dashed border-white/10 bg-slate-950/40">
+                  <ShieldAlert className="h-10 w-10 text-yellow-400 mb-3" />
+                  <h3 className="text-base font-bold text-white mb-1">No Connected Developer Profiles</h3>
+                  <p className="text-xs text-dark-textMuted max-w-md mb-5 leading-relaxed">
+                    Connect your LeetCode, GitHub, or Codeforces accounts to sync your actual daily problems solved & commit frequency telemetry over time.
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <Button size="sm" onClick={() => setShowLCModal(true)} className="h-9 text-xs bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold">
+                      Connect LeetCode
+                    </Button>
+                    <Button size="sm" onClick={() => setShowGHModal(true)} variant="outline" className="h-9 text-xs">
+                      <Github className="h-3.5 w-3.5 mr-1.5" /> Connect GitHub
+                    </Button>
+                    <Button size="sm" onClick={() => setShowCFModal(true)} variant="outline" className="h-9 text-xs">
+                      Connect Codeforces
+                    </Button>
+                  </div>
+                </div>
+              ) : loading ? (
                 <Shimmer className="h-[300px] w-full" />
               ) : (
                 <div className="h-[300px] w-full">
@@ -369,18 +406,23 @@ export const Dashboard = () => {
                     <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorSolved" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
                           <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorCommits" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                       <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
                       <Tooltip 
                         contentStyle={{ backgroundColor: 'rgba(15,23,42,0.95)', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.5)' }}
                         itemStyle={{ color: '#fff' }}
                       />
-                      <Area type="monotone" dataKey="solved" stroke="#6366f1" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSolved)" />
+                      <Area type="monotone" dataKey="solved" stroke="#6366f1" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSolved)" name="Problems Solved" />
+                      <Area type="monotone" dataKey="commits" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorCommits)" name="GitHub Commits" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>

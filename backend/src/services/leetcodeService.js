@@ -76,18 +76,57 @@ const syncLeetcodeData = async (userId, username) => {
       }
     }
 
-    // 4. Update coding streak details on dashboard summary
+    // 4. Parse submissionCalendar and upsert into daily_stats for accurate daily activity
+    if (data && data.submissionCalendar) {
+      let calendar = data.submissionCalendar;
+      if (typeof calendar === 'string') {
+        try { calendar = JSON.parse(calendar); } catch (e) {}
+      }
+      if (typeof calendar === 'object' && calendar !== null) {
+        for (const [timestampStr, count] of Object.entries(calendar)) {
+          const ts = parseInt(timestampStr, 10);
+          if (!isNaN(ts)) {
+            const d = new Date(ts * 1000);
+            const dateStr = d.toISOString().split('T')[0];
+            const numCount = parseInt(count, 10) || 0;
+            
+            await prisma.daily_stats.upsert({
+              where: {
+                user_id_date: {
+                  user_id: userId,
+                  date: new Date(dateStr),
+                },
+              },
+              update: {
+                problems_solved: numCount,
+              },
+              create: {
+                user_id: userId,
+                date: new Date(dateStr),
+                problems_solved: numCount,
+                commits: 0,
+                contests_played: 0,
+                xp_earned: numCount * 10,
+                study_minutes: numCount * 15,
+              },
+            });
+          }
+        }
+      }
+    }
+
+    // 5. Update coding streak details on dashboard summary
     await prisma.dashboard_summary.upsert({
       where: { user_id: userId },
       update: {
         total_solved: data.totalSolved || 0,
-        streak: 3, // Mocked/fallback coding streak info
+        streak: data.streak || 1,
         updated_at: new Date(),
       },
       create: {
         user_id: userId,
         total_solved: data.totalSolved || 0,
-        streak: 3,
+        streak: data.streak || 1,
         updated_at: new Date(),
       },
     });

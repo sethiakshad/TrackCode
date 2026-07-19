@@ -60,10 +60,54 @@ const connectGitHub = async (userId, username) => {
     },
   });
 
-  // Sync repositories
+  // Sync repositories & commit events into daily_stats
   await syncUserRepositories(githubProfile.id, username);
+  await syncGitHubEvents(userId, username);
 
   return githubProfile;
+};
+
+const syncGitHubEvents = async (userId, username) => {
+  try {
+    const response = await axios.get(`https://api.github.com/users/${username}/events`, {
+      headers: { Accept: 'application/vnd.github.v3+json' },
+    });
+    const events = response.data || [];
+    const commitCountsByDate = {};
+
+    for (const ev of events) {
+      if (ev.type === 'PushEvent' && ev.created_at) {
+        const dateStr = ev.created_at.split('T')[0];
+        const commits = (ev.payload && Array.isArray(ev.payload.commits)) ? ev.payload.commits.length : 1;
+        commitCountsByDate[dateStr] = (commitCountsByDate[dateStr] || 0) + commits;
+      }
+    }
+
+    for (const [dateStr, commitCount] of Object.entries(commitCountsByDate)) {
+      await prisma.daily_stats.upsert({
+        where: {
+          user_id_date: {
+            user_id: userId,
+            date: new Date(dateStr),
+          },
+        },
+        update: {
+          commits: commitCount,
+        },
+        create: {
+          user_id: userId,
+          date: new Date(dateStr),
+          problems_solved: 0,
+          commits: commitCount,
+          contests_played: 0,
+          xp_earned: commitCount * 5,
+          study_minutes: commitCount * 10,
+        },
+      });
+    }
+  } catch (err) {
+    console.warn('[GITHUB EVENTS SYNC WARN]', err.message);
+  }
 };
 
 /**

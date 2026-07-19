@@ -100,9 +100,57 @@ const disconnectAccount = async (userId, platform) => {
 /**
  * Connect a profile (upsert connection row for minor platforms).
  */
+const syncCodeforcesSubmissions = async (userId, username) => {
+  try {
+    const res = await axios.get(`https://codeforces.com/api/user.status?handle=${encodeURIComponent(username)}&from=1&count=100`, {
+      timeout: 10000,
+    });
+    if (res.data && res.data.status === 'OK' && Array.isArray(res.data.result)) {
+      const solvedByDate = {};
+      const seenProblems = new Set();
+
+      for (const sub of res.data.result) {
+        if (sub.verdict === 'OK' && sub.problem && sub.creationTimeSeconds) {
+          const probKey = `${sub.problem.contestId}-${sub.problem.index}`;
+          if (!seenProblems.has(probKey)) {
+            seenProblems.add(probKey);
+            const dateStr = new Date(sub.creationTimeSeconds * 1000).toISOString().split('T')[0];
+            solvedByDate[dateStr] = (solvedByDate[dateStr] || 0) + 1;
+          }
+        }
+      }
+
+      for (const [dateStr, count] of Object.entries(solvedByDate)) {
+        await prisma.daily_stats.upsert({
+          where: {
+            user_id_date: {
+              user_id: userId,
+              date: new Date(dateStr),
+            },
+          },
+          update: {
+            problems_solved: { increment: count },
+          },
+          create: {
+            user_id: userId,
+            date: new Date(dateStr),
+            problems_solved: count,
+            commits: 0,
+            contests_played: 0,
+            xp_earned: count * 10,
+            study_minutes: count * 15,
+          },
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[CODEFORCES SYNC WARN]', err.message);
+  }
+};
+
 const connectAccount = async (userId, platform, profileData) => {
   if (platform === 'codeforces') {
-    return prisma.codeforces_profiles.upsert({
+    const profile = await prisma.codeforces_profiles.upsert({
       where: { user_id: userId },
       update: {
         username: profileData.username,
@@ -124,7 +172,34 @@ const connectAccount = async (userId, platform, profileData) => {
         synced_at: new Date(),
       }
     });
+
+    await syncCodeforcesSubmissions(userId, profileData.username);
+    return profile;
   } else if (platform === 'codechef') {
+    const count = parseInt(profileData.problems_solved, 10) || 0;
+    if (count > 0) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      await prisma.daily_stats.upsert({
+        where: {
+          user_id_date: {
+            user_id: userId,
+            date: new Date(todayStr),
+          },
+        },
+        update: {
+          problems_solved: { increment: Math.min(count, 5) },
+        },
+        create: {
+          user_id: userId,
+          date: new Date(todayStr),
+          problems_solved: Math.min(count, 5),
+          commits: 0,
+          contests_played: 0,
+          xp_earned: count * 10,
+          study_minutes: count * 15,
+        },
+      });
+    }
     return { username: profileData.username, platform: 'codechef', syncedAt: new Date() };
   } else {
     const error = new Error('Invalid platform specified or platform requires dedicated service (e.g., github, leetcode)');
