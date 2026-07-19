@@ -16,7 +16,7 @@ import { ConnectCodeforcesModal } from '../../components/ui/ConnectCodeforcesMod
 import { ConnectCodechefModal } from '../../components/ui/ConnectCodechefModal';
 import { getDashboardSummary, getWeeklyActivity, getUpcomingContests } from '../../lib/api/dashboardApi';
 import { getGoals } from '../../lib/api/goalsApi';
-import { getTopicMastery, getHeatmapData } from '../../lib/api/analyticsApi';
+import { getTopicMastery, getHeatmapData, getMonthlyStats } from '../../lib/api/analyticsApi';
 import { getAiFeedbackSummary } from '../../lib/api/coachApi';
 
 
@@ -170,6 +170,34 @@ export const Dashboard = () => {
     };
     loadData();
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const updateChart = async () => {
+      try {
+        if (chartFilter === '7d') {
+          const activity = await getWeeklyActivity();
+          setChartData(activity);
+        } else {
+          const limitMap = { '30d': 4, '3m': 12, '1y': 52 };
+          const monthly = await getMonthlyStats(limitMap[chartFilter] || 4);
+          if (Array.isArray(monthly) && monthly.length > 0) {
+            setChartData(monthly.map(m => ({
+              name: m.month_start ? new Date(m.month_start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : (m.name || 'Period'),
+              solved: m.problems_solved || m.solved || 0,
+              commits: m.commits || 0,
+            })));
+          } else {
+            const activity = await getWeeklyActivity();
+            setChartData(activity);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to update chart filter:", e);
+      }
+    };
+    updateChart();
+  }, [chartFilter, user?.id]);
 
 
   return (

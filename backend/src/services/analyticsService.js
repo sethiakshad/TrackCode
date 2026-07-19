@@ -34,7 +34,11 @@ const getDifficultyDistribution = async (userId) => {
     }
   });
 
-  return distribution;
+  return [
+    { name: 'Easy', count: distribution.easy, fill: '#10b981' },
+    { name: 'Medium', count: distribution.medium, fill: '#f59e0b' },
+    { name: 'Hard', count: distribution.hard, fill: '#ef4444' },
+  ];
 };
 
 /**

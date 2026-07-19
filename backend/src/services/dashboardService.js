@@ -38,35 +38,91 @@ const getDailyGoals = async (userId) => {
  * Get weekly progress stats (aggregated by daily stats over last 7 days).
  */
 const getWeeklyProgress = async (userId) => {
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const days = [];
+  const now = new Date();
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  return prisma.daily_stats.findMany({
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    days.push({
+      dateStr,
+      name: dayNames[d.getDay()],
+      date: d,
+    });
+  }
+
+  const startDate = new Date(days[0].date);
+  startDate.setHours(0, 0, 0, 0);
+
+  const stats = await prisma.daily_stats.findMany({
     where: {
       user_id: userId,
       date: {
-        gte: sevenDaysAgo,
+        gte: startDate,
       },
     },
-    orderBy: { date: 'asc' },
+  });
+
+  const statsMap = new Map();
+  stats.forEach((s) => {
+    const key = new Date(s.date).toISOString().split('T')[0];
+    statsMap.set(key, s);
+  });
+
+  return days.map((day) => {
+    const record = statsMap.get(day.dateStr);
+    return {
+      name: day.name,
+      date: day.dateStr,
+      solved: record ? (record.problems_solved || 0) : 0,
+      commits: record ? (record.commits || 0) : 0,
+    };
   });
 };
 
-/**
- * Get monthly progress stats (aggregated by weekly or daily stats).
- */
 const getMonthlyProgress = async (userId) => {
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const days = [];
+  const now = new Date();
 
-  return prisma.daily_stats.findMany({
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    days.push({
+      dateStr,
+      name: `${d.getMonth() + 1}/${d.getDate()}`,
+      date: d,
+    });
+  }
+
+  const startDate = new Date(days[0].date);
+  startDate.setHours(0, 0, 0, 0);
+
+  const stats = await prisma.daily_stats.findMany({
     where: {
       user_id: userId,
       date: {
-        gte: thirtyDaysAgo,
+        gte: startDate,
       },
     },
-    orderBy: { date: 'asc' },
+  });
+
+  const statsMap = new Map();
+  stats.forEach((s) => {
+    const key = new Date(s.date).toISOString().split('T')[0];
+    statsMap.set(key, s);
+  });
+
+  return days.map((day) => {
+    const record = statsMap.get(day.dateStr);
+    return {
+      name: day.name,
+      date: day.dateStr,
+      solved: record ? (record.problems_solved || 0) : 0,
+      commits: record ? (record.commits || 0) : 0,
+    };
   });
 };
 

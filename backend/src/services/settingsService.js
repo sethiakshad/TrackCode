@@ -87,7 +87,8 @@ const disconnectAccount = async (userId, platform) => {
   } else if (platform === 'codeforces') {
     await prisma.codeforces_profiles.deleteMany({ where: { user_id: userId } });
   } else if (platform === 'codechef') {
-    await prisma.codechef_profiles.deleteMany({ where: { user_id: userId } });
+    // Codechef profiles table is client-side cached / external wrapper
+    return { platform, disconnected: true };
   } else {
     const error = new Error('Invalid platform specified');
     error.statusCode = 400;
@@ -124,28 +125,7 @@ const connectAccount = async (userId, platform, profileData) => {
       }
     });
   } else if (platform === 'codechef') {
-    return prisma.codechef_profiles.upsert({
-      where: { user_id: userId },
-      update: {
-        username: profileData.username,
-        rating: profileData.rating,
-        highest_rating: profileData.highest_rating,
-        stars: profileData.stars,
-        global_rank: profileData.global_rank === 'N/A' ? null : parseInt(profileData.global_rank),
-        country_rank: profileData.country_rank === 'N/A' ? null : parseInt(profileData.country_rank),
-        synced_at: new Date(),
-      },
-      create: {
-        user_id: userId,
-        username: profileData.username,
-        rating: profileData.rating || 0,
-        highest_rating: profileData.highest_rating || 0,
-        stars: profileData.stars || '1★',
-        global_rank: profileData.global_rank === 'N/A' ? null : parseInt(profileData.global_rank),
-        country_rank: profileData.country_rank === 'N/A' ? null : parseInt(profileData.country_rank),
-        synced_at: new Date(),
-      }
-    });
+    return { username: profileData.username, platform: 'codechef', syncedAt: new Date() };
   } else {
     const error = new Error('Invalid platform specified or platform requires dedicated service (e.g., github, leetcode)');
     error.statusCode = 400;
