@@ -74,7 +74,7 @@ const getHeatmapData = async (userId) => {
   });
 
   return dailyStats.map(stat => ({
-    date: stat.date.toISOString().split('T')[0],
+    date: (stat.date instanceof Date ? stat.date : new Date(stat.date)).toISOString().split('T')[0],
     count: stat.problems_solved + stat.commits,
   }));
 };
@@ -147,7 +147,7 @@ const getProgressGraph = async (userId) => {
   return stats.map(stat => {
     cumulativeSolved += stat.problems_solved;
     return {
-      date: stat.date.toISOString().split('T')[0],
+      date: (stat.date instanceof Date ? stat.date : new Date(stat.date)).toISOString().split('T')[0],
       solved: cumulativeSolved,
     };
   });

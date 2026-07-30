@@ -45,7 +45,10 @@ const getWeeklyProgress = async (userId) => {
   for (let i = 6; i >= 0; i--) {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split('T')[0];
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const dayNum = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${dayNum}`;
     days.push({
       dateStr,
       name: dayNames[d.getDay()],
@@ -53,7 +56,7 @@ const getWeeklyProgress = async (userId) => {
     });
   }
 
-  const startDate = new Date(days[0].date);
+  const startDate = new Date(days[0].dateStr);
   startDate.setHours(0, 0, 0, 0);
 
   const stats = await prisma.daily_stats.findMany({
@@ -67,7 +70,11 @@ const getWeeklyProgress = async (userId) => {
 
   const statsMap = new Map();
   stats.forEach((s) => {
-    const key = new Date(s.date).toISOString().split('T')[0];
+    const d = new Date(s.date);
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dayNum = String(d.getUTCDate()).padStart(2, '0');
+    const key = `${year}-${month}-${dayNum}`;
     statsMap.set(key, s);
   });
 
@@ -89,7 +96,10 @@ const getMonthlyProgress = async (userId) => {
   for (let i = 29; i >= 0; i--) {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split('T')[0];
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const dayNum = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${dayNum}`;
     days.push({
       dateStr,
       name: `${d.getMonth() + 1}/${d.getDate()}`,
@@ -97,7 +107,7 @@ const getMonthlyProgress = async (userId) => {
     });
   }
 
-  const startDate = new Date(days[0].date);
+  const startDate = new Date(days[0].dateStr);
   startDate.setHours(0, 0, 0, 0);
 
   const stats = await prisma.daily_stats.findMany({
@@ -111,7 +121,11 @@ const getMonthlyProgress = async (userId) => {
 
   const statsMap = new Map();
   stats.forEach((s) => {
-    const key = new Date(s.date).toISOString().split('T')[0];
+    const d = new Date(s.date);
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dayNum = String(d.getUTCDate()).padStart(2, '0');
+    const key = `${year}-${month}-${dayNum}`;
     statsMap.set(key, s);
   });
 

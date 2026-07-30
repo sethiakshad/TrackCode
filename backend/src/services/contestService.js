@@ -81,7 +81,7 @@ const getContestRating = async (userId) => {
   return history.map(h => ({
     contestName: h.contests.name,
     platform: h.contests.platform,
-    date: h.date.toISOString().split('T')[0],
+    date: (h.date instanceof Date ? h.date : new Date(h.date)).toISOString().split('T')[0],
     rating: h.new_rating || 0,
     ratingChange: (h.new_rating || 0) - (h.old_rating || 0),
   }));
@@ -152,7 +152,7 @@ const getAccuracyAnalysis = async (userId) => {
   // Since exact contest problem count isn't in DB, we base it on average solved / attempts.
   // We'll calculate a percentage relative to a default 5-problem contest standard.
   return history.map(h => ({
-    date: h.date.toISOString().split('T')[0],
+    date: (h.date instanceof Date ? h.date : new Date(h.date)).toISOString().split('T')[0],
     solvedCount: h.solved,
     accuracyRate: Math.min(100, parseFloat(((h.solved / 5) * 100).toFixed(2))),
   }));

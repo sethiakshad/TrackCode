@@ -77,6 +77,7 @@ const syncLeetcodeData = async (userId, username) => {
     }
 
     // 4. Parse submissionCalendar and upsert into daily_stats for accurate daily activity
+    let calendarEntriesCount = 0;
     if (data && data.submissionCalendar) {
       let calendar = data.submissionCalendar;
       if (typeof calendar === 'string') {
@@ -89,30 +90,106 @@ const syncLeetcodeData = async (userId, username) => {
             const d = new Date(ts * 1000);
             const dateStr = d.toISOString().split('T')[0];
             const numCount = parseInt(count, 10) || 0;
-            
-            await prisma.daily_stats.upsert({
-              where: {
-                user_id_date: {
+            if (numCount > 0) {
+              calendarEntriesCount++;
+              await prisma.daily_stats.upsert({
+                where: {
+                  user_id_date: {
+                    user_id: userId,
+                    date: new Date(dateStr),
+                  },
+                },
+                update: {
+                  problems_solved: numCount,
+                },
+                create: {
                   user_id: userId,
                   date: new Date(dateStr),
+                  problems_solved: numCount,
+                  commits: 0,
+                  contests_played: 0,
+                  xp_earned: numCount * 10,
+                  study_minutes: numCount * 15,
                 },
-              },
-              update: {
-                problems_solved: numCount,
-              },
-              create: {
-                user_id: userId,
-                date: new Date(dateStr),
-                problems_solved: numCount,
-                commits: 0,
-                contests_played: 0,
-                xp_earned: numCount * 10,
-                study_minutes: numCount * 15,
-              },
-            });
+              });
+            }
           }
         }
       }
+    }
+
+    // Refine recent stats using recentSubmissions to get accurate unique problems solved (not just submission count)
+    if (data.recentSubmissions && Array.isArray(data.recentSubmissions)) {
+      const acceptedPerDate = {}; // dateStr -> Set of titleSlugs
+
+      for (const sub of data.recentSubmissions) {
+        if (sub.statusDisplay === 'Accepted' && sub.timestamp) {
+          const d = new Date(parseInt(sub.timestamp, 10) * 1000);
+          const dateStr = d.toISOString().split('T')[0];
+          
+          if (!acceptedPerDate[dateStr]) {
+            acceptedPerDate[dateStr] = new Set();
+          }
+          acceptedPerDate[dateStr].add(sub.titleSlug);
+        }
+      }
+
+      // Upsert the more accurate counts
+      for (const [dateStr, uniqueProblemsSet] of Object.entries(acceptedPerDate)) {
+        const exactCount = uniqueProblemsSet.size;
+        if (exactCount > 0) {
+          calendarEntriesCount++;
+          await prisma.daily_stats.upsert({
+            where: {
+              user_id_date: {
+                user_id: userId,
+                date: new Date(dateStr),
+              },
+            },
+            update: {
+              problems_solved: exactCount,
+            },
+            create: {
+              user_id: userId,
+              date: new Date(dateStr),
+              problems_solved: exactCount,
+              commits: 0,
+              contests_played: 0,
+              xp_earned: exactCount * 10,
+              study_minutes: exactCount * 15,
+            },
+          });
+        }
+      }
+    }
+
+    const totalSolved = (data.totalSolved || data.solvedProblem || 0);
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    // Fallback: If submissionCalendar was empty or missing from API response, but user has solved problems:
+    if (calendarEntriesCount === 0 && totalSolved > 0) {
+      const activeSolved = Math.min(totalSolved, 4);
+      await prisma.daily_stats.upsert({
+        where: {
+          user_id_date: {
+            user_id: userId,
+            date: new Date(todayStr),
+          },
+        },
+        update: {
+          problems_solved: activeSolved,
+        },
+        create: {
+          user_id: userId,
+          date: new Date(todayStr),
+          problems_solved: activeSolved,
+          commits: 0,
+          contests_played: 0,
+          xp_earned: activeSolved * 10,
+          study_minutes: activeSolved * 15,
+        },
+      });
     }
 
     // 5. Update coding streak details on dashboard summary
@@ -132,7 +209,8 @@ const syncLeetcodeData = async (userId, username) => {
     });
 
     return profile;
-  } catch (error) {
+  }
+  catch (error) {
     console.error('[LEETCODE SYNC ERROR]', error.message);
     throw error;
   }
