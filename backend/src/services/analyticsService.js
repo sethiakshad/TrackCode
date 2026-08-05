@@ -90,15 +90,69 @@ const getWeeklyStatistics = async (userId) => {
   });
 };
 
-/**
- * Monthly Statistics: Monthly progress aggregation.
- */
-const getMonthlyStatistics = async (userId) => {
-  return prisma.monthly_stats.findMany({
+const getMonthlyStatistics = async (userId, limit = 12) => {
+  const stats = await prisma.daily_stats.findMany({
     where: { user_id: userId },
-    orderBy: { month_start: 'desc' },
-    take: 12, // Last 12 months
+    orderBy: { date: 'asc' },
   });
+
+  const monthMap = new Map();
+  stats.forEach(s => {
+    const d = s.date instanceof Date ? s.date : new Date(s.date);
+    const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    
+    if (!monthMap.has(monthKey)) {
+      monthMap.set(monthKey, {
+        name: d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
+        month_start: new Date(d.getFullYear(), d.getMonth(), 1).toISOString(),
+        problems_solved: 0,
+        commits: 0,
+        contests_played: 0,
+        xp_earned: 0,
+        study_minutes: 0,
+      });
+    }
+    
+    const m = monthMap.get(monthKey);
+    m.problems_solved += (s.problems_solved || 0);
+    m.commits += (s.commits || 0);
+    m.contests_played += (s.contests_played || 0);
+    m.xp_earned += (s.xp_earned || 0);
+    m.study_minutes += (s.study_minutes || 0);
+  });
+
+  // Convert map to array and sort by month_start descending, then take limit
+  const sorted = Array.from(monthMap.values())
+    .sort((a, b) => new Date(b.month_start) - new Date(a.month_start))
+    .slice(0, limit);
+
+  // Reverse it back so the chart renders oldest on the left to newest on the right
+  return sorted.reverse();
+};
+
+const getCustomStatistics = async (userId, start, end) => {
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  // Ensure we include the whole end date
+  endDate.setHours(23, 59, 59, 999);
+
+  const stats = await prisma.daily_stats.findMany({
+    where: { 
+      user_id: userId,
+      date: {
+        gte: startDate,
+        lte: endDate
+      }
+    },
+    orderBy: { date: 'asc' },
+  });
+
+  return stats.map(s => ({
+    name: (s.date instanceof Date ? s.date : new Date(s.date)).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+    date: s.date,
+    solved: s.problems_solved || 0,
+    commits: s.commits || 0,
+  }));
 };
 
 /**
@@ -173,6 +227,7 @@ module.exports = {
   getHeatmapData,
   getWeeklyStatistics,
   getMonthlyStatistics,
+  getCustomStatistics,
   getRadarChartData,
   getProgressGraph,
   getContestPerformance,

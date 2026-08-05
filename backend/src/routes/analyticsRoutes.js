@@ -13,6 +13,7 @@ router.get('/acceptance-rate', analyticsController.getAcceptanceRate);
 router.get('/heatmap', analyticsController.getHeatmapData);
 router.get('/weekly', analyticsController.getWeeklyStatistics);
 router.get('/monthly', analyticsController.getMonthlyStatistics);
+router.get('/custom', analyticsController.getCustomStatistics);
 router.get('/radar', analyticsController.getRadarChartData);
 router.get('/progress', analyticsController.getProgressGraph);
 router.get('/contest-performance', analyticsController.getContestPerformance);

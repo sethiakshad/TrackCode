@@ -20,11 +20,11 @@ export const ConnectLeetCodeModal = ({ isOpen, onClose, onConfirm }) => {
   const [copied, setCopied] = useState(false);
 
   // Generate a random verification code that persists while the modal is open
-  const [verificationCode, setVerificationCode] = useState(() => `TC-${Math.floor(1000 + Math.random() * 9000)}`);
+  const [verificationCode, setVerificationCode] = useState(() => `iiitp-${Math.floor(1000 + Math.random() * 9000)}`);
 
   useEffect(() => {
     if (isOpen) {
-      setVerificationCode(`TC-${Math.floor(1000 + Math.random() * 9000)}`);
+      setVerificationCode(`iiitp-${Math.floor(1000 + Math.random() * 9000)}`);
     }
   }, [isOpen]);
 

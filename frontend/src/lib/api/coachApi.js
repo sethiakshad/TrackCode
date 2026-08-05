@@ -13,7 +13,8 @@ export async function getAiRecommendations() {
  */
 export async function getAiFeedbackSummary() {
   const response = await apiClient.get('/ai/summary').catch(() => null);
-  return response?.data?.summary || "You're making great progress! Keep consistency by solving at least 1 medium problem every day.";
+  // response is already {status, data:{summary:...}} from axios interceptor
+  return response?.data?.summary || response?.summary || "You're making great progress! Keep consistency by solving at least 1 medium problem every day.";
 }
 
 /**

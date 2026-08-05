@@ -1,11 +1,16 @@
 import apiClient from '../axios';
 
+// axios interceptor already unwraps response.data → { status, data }
+// These helpers extract the inner .data array defensively
+const toArray = (res) => (Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []);
+const toObject = (res) => (res?.data && typeof res.data === 'object' ? res.data : res ?? {});
+
 /**
  * Fetch the dashboard summary for a user.
  */
 export async function getDashboardSummary() {
   const response = await apiClient.get('/dashboard/summary');
-  return response.data;
+  return toObject(response);
 }
 
 /**
@@ -13,7 +18,7 @@ export async function getDashboardSummary() {
  */
 export async function getWeeklyActivity() {
   const response = await apiClient.get('/dashboard/weekly-progress');
-  return response.data;
+  return toArray(response);
 }
 
 /**
@@ -21,5 +26,5 @@ export async function getWeeklyActivity() {
  */
 export async function getUpcomingContests() {
   const response = await apiClient.get('/dashboard/upcoming-contests');
-  return response.data;
+  return toArray(response);
 }

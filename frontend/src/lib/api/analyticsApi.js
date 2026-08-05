@@ -5,9 +5,8 @@ import apiClient from '../axios';
  */
 export async function getTopicMastery() {
   const response = await apiClient.get('/analytics/topic-mastery');
-  
-  // Map to recharts-friendly format (backend might already do this, but just in case)
-  return (response.data ?? []).map((t) => ({
+  const rows = Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
+  return rows.map((t) => ({
     subject: t.topic,
     A: Math.round(t.mastery_score),
     solved: t.solved,
@@ -21,7 +20,8 @@ export async function getTopicMastery() {
  */
 export async function getDifficultyDistribution() {
   const response = await apiClient.get('/analytics/difficulty-distribution');
-  return response.data;
+  const arr = response?.data;
+  return Array.isArray(arr) ? arr : [];
 }
 
 /**
@@ -33,11 +33,15 @@ export async function getAnalyticsOverview() {
       apiClient.get('/analytics/acceptance-rate').catch(() => ({ data: { acceptanceRate: 0 } })),
       apiClient.get('/dashboard/summary').catch(() => ({ data: { total_solved: 0, contests_entered: 0 } }))
     ]);
-    
+
+    // acceptanceRes and dashboardRes are already {status, data} from interceptor
+    const accData = acceptanceRes?.data ?? acceptanceRes ?? {};
+    const dashData = dashboardRes?.data ?? dashboardRes ?? {};
+
     return {
-      acceptanceRate: acceptanceRes.data?.acceptanceRate || 0,
-      contestsEntered: dashboardRes.data?.contests_entered || 0,
-      totalSolved: dashboardRes.data?.total_solved || 0
+      acceptanceRate: accData?.acceptanceRate || accData?.rate || 0,
+      contestsEntered: dashData?.contests_entered || 0,
+      totalSolved: dashData?.total_solved || 0
     };
   } catch (err) {
     return { acceptanceRate: 0, contestsEntered: 0, totalSolved: 0 };
@@ -49,7 +53,8 @@ export async function getAnalyticsOverview() {
  */
 export async function getWeeklyStats(limit = 8) {
   const response = await apiClient.get(`/analytics/weekly?limit=${limit}`);
-  return response.data;
+  const arr = response?.data;
+  return Array.isArray(arr) ? arr : [];
 }
 
 /**
@@ -57,7 +62,17 @@ export async function getWeeklyStats(limit = 8) {
  */
 export async function getMonthlyStats(limit = 6) {
   const response = await apiClient.get(`/analytics/monthly?limit=${limit}`);
-  return response.data;
+  const arr = response?.data;
+  return Array.isArray(arr) ? arr : [];
+}
+
+/**
+ * Get custom date range stats.
+ */
+export async function getCustomStats(start, end) {
+  const response = await apiClient.get(`/analytics/custom?start=${start}&end=${end}`);
+  const arr = response?.data;
+  return Array.isArray(arr) ? arr : [];
 }
 
 /**
@@ -65,5 +80,7 @@ export async function getMonthlyStats(limit = 6) {
  */
 export async function getHeatmapData() {
   const response = await apiClient.get('/analytics/heatmap');
-  return response.data?.data || [];
+  // response is {status, data:[...]} — interceptor already unwrapped axios response
+  const arr = response?.data;
+  return Array.isArray(arr) ? arr : [];
 }

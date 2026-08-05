@@ -2,22 +2,23 @@ import apiClient from '../axios';
 
 /**
  * Full CRUD for user goals.
+ * axios interceptor returns { status, data } — we extract .data
  */
 
 export async function getGoals() {
   const response = await apiClient.get('/goals');
-  return response.data;
+  const arr = response?.data;
+  return Array.isArray(arr) ? arr : [];
 }
 
 export async function createGoal(goalData) {
-  // goalData = { goal, target, deadline }
   const response = await apiClient.post('/goals', goalData);
-  return response.data;
+  return response?.data ?? response;
 }
 
 export async function updateGoal(goalId, updates) {
   const response = await apiClient.patch(`/goals/${goalId}`, updates);
-  return response.data;
+  return response?.data ?? response;
 }
 
 export async function deleteGoal(goalId) {
@@ -27,5 +28,5 @@ export async function deleteGoal(goalId) {
 
 export async function updateGoalProgress(goalId, progress) {
   const response = await apiClient.patch(`/goals/${goalId}/progress`, { progress });
-  return response.data;
+  return response?.data ?? response;
 }

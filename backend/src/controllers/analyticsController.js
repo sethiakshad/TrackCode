@@ -54,6 +54,19 @@ const getMonthlyStatistics = async (req, res, next) => {
   }
 };
 
+const getCustomStatistics = async (req, res, next) => {
+  try {
+    const { start, end } = req.query;
+    if (!start || !end) {
+      return res.status(400).json({ status: 'error', message: 'start and end dates are required' });
+    }
+    const data = await analyticsService.getCustomStatistics(req.userId, start, end);
+    res.json({ status: 'success', data });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getRadarChartData = async (req, res, next) => {
   try {
     const data = await analyticsService.getRadarChartData(req.userId);
@@ -88,6 +101,7 @@ module.exports = {
   getHeatmapData,
   getWeeklyStatistics,
   getMonthlyStatistics,
+  getCustomStatistics,
   getRadarChartData,
   getProgressGraph,
   getContestPerformance,

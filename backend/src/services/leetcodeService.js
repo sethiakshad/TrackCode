@@ -124,9 +124,11 @@ const syncLeetcodeData = async (userId, username) => {
 
       for (const sub of data.recentSubmissions) {
         if (sub.statusDisplay === 'Accepted' && sub.timestamp) {
-          const d = new Date(parseInt(sub.timestamp, 10) * 1000);
-          const dateStr = d.toISOString().split('T')[0];
-          
+          const ts = parseInt(sub.timestamp, 10);
+          // LeetCode timestamps are Unix seconds
+          const d = new Date((ts > 1e12 ? ts : ts * 1000)); // handle both ms and s
+          const dateStr = d.toISOString().split('T')[0]; // always UTC date
+
           if (!acceptedPerDate[dateStr]) {
             acceptedPerDate[dateStr] = new Set();
           }
@@ -134,10 +136,18 @@ const syncLeetcodeData = async (userId, username) => {
         }
       }
 
-      // Upsert the more accurate counts
+      // Upsert: never reduce existing count (take max so submissionCalendar isn't overwritten downward)
       for (const [dateStr, uniqueProblemsSet] of Object.entries(acceptedPerDate)) {
         const exactCount = uniqueProblemsSet.size;
         if (exactCount > 0) {
+          // Fetch existing row first so we can take the max
+          const existing = await prisma.daily_stats.findFirst({
+            where: { user_id: userId, date: new Date(dateStr) },
+          });
+          const finalCount = existing
+            ? Math.max(existing.problems_solved || 0, exactCount)
+            : exactCount;
+
           calendarEntriesCount++;
           await prisma.daily_stats.upsert({
             where: {
@@ -147,16 +157,16 @@ const syncLeetcodeData = async (userId, username) => {
               },
             },
             update: {
-              problems_solved: exactCount,
+              problems_solved: finalCount,
             },
             create: {
               user_id: userId,
               date: new Date(dateStr),
-              problems_solved: exactCount,
+              problems_solved: finalCount,
               commits: 0,
               contests_played: 0,
-              xp_earned: exactCount * 10,
-              study_minutes: exactCount * 15,
+              xp_earned: finalCount * 10,
+              study_minutes: finalCount * 15,
             },
           });
         }

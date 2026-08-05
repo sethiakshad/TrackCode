@@ -44,20 +44,21 @@ const getWeeklyProgress = async (userId) => {
 
   for (let i = 6; i >= 0; i--) {
     const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const dayNum = String(d.getDate()).padStart(2, '0');
+    d.setUTCDate(d.getUTCDate() - i);
+    // Use UTC parts everywhere — the sync service stores dates as UTC midnight
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dayNum = String(d.getUTCDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${dayNum}`;
     days.push({
       dateStr,
-      name: dayNames[d.getDay()],
+      name: dayNames[d.getUTCDay()],
       date: d,
     });
   }
 
-  const startDate = new Date(days[0].dateStr);
-  startDate.setHours(0, 0, 0, 0);
+  // startDate = UTC midnight of 7 days ago
+  const startDate = new Date(`${days[0].dateStr}T00:00:00.000Z`);
 
   const stats = await prisma.daily_stats.findMany({
     where: {

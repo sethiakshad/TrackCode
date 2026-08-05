@@ -16,7 +16,7 @@ import { ConnectCodeforcesModal } from '../../components/ui/ConnectCodeforcesMod
 import { ConnectCodechefModal } from '../../components/ui/ConnectCodechefModal';
 import { getDashboardSummary, getWeeklyActivity, getUpcomingContests } from '../../lib/api/dashboardApi';
 import { getGoals } from '../../lib/api/goalsApi';
-import { getTopicMastery, getHeatmapData, getMonthlyStats } from '../../lib/api/analyticsApi';
+import { getTopicMastery, getHeatmapData, getMonthlyStats, getCustomStats } from '../../lib/api/analyticsApi';
 import { getAiFeedbackSummary } from '../../lib/api/coachApi';
 
 
@@ -112,6 +112,8 @@ export const Dashboard = () => {
 
   const [loading, setLoading] = useState(true);
   const [chartFilter, setChartFilter] = useState('7d');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
   const [showLCModal, setShowLCModal] = useState(false);
   const [showGHModal, setShowGHModal] = useState(false);
   const [showCFModal, setShowCFModal] = useState(false);
@@ -139,21 +141,31 @@ export const Dashboard = () => {
           getAiFeedbackSummary(user.id)
         ]);
 
+        // DEBUG — remove after confirming fix
+        console.log('[Dashboard] activity:', activity, 'isArray:', Array.isArray(activity));
+        console.log('[Dashboard] goalsList:', goalsList, 'isArray:', Array.isArray(goalsList));
+        console.log('[Dashboard] topics:', topics, 'isArray:', Array.isArray(topics));
+
         setDbSummary(summary);
-        setChartData(activity);
-        setUpcomingEvents(contests);
+        const activityRows = Array.isArray(activity) ? activity : [];
+        setChartData(
+          isConnectedGitHub
+            ? activityRows
+            : activityRows.map(r => ({ ...r, commits: undefined }))
+        );
+        setUpcomingEvents(Array.isArray(contests) ? contests : []);
         setAiFeedback(feedback);
         
-        const sortedWeak = topics
+        const safeTopics = Array.isArray(topics) ? topics : [];
+        const sortedWeak = safeTopics
           .filter(t => t.A < 70)
           .map(t => ({ name: t.subject, mastery: t.A }))
           .slice(0, 2);
         
-        // Use real data, but if absolutely empty, we show a 'No weak topics detected' message in UI instead of mock
         setWeakTopics(sortedWeak);
 
-        // Find primary active goal for daily target progress
-        const activeGoal = goalsList.find(g => !g.completed);
+        const safeGoals = Array.isArray(goalsList) ? goalsList : [];
+        const activeGoal = safeGoals.find(g => !g.completed);
         if (activeGoal) {
           setDailyGoal({
             solved: Math.round((activeGoal.progress / 100) * activeGoal.target),
@@ -177,21 +189,29 @@ export const Dashboard = () => {
     if (!user?.id) return;
     const updateChart = async () => {
       try {
+        const stripCommits = (rows) => {
+          const safe = Array.isArray(rows) ? rows : [];
+          return safe.map(r => ({ ...r, commits: isConnectedGitHub ? (r.commits || 0) : undefined }));
+        };
+
         if (chartFilter === '7d') {
           const activity = await getWeeklyActivity();
-          setChartData(activity);
+          setChartData(stripCommits(activity));
+        } else if (chartFilter === 'custom' && customStart && customEnd) {
+          const customData = await getCustomStats(customStart, customEnd);
+          setChartData(stripCommits(customData || []));
         } else {
           const limitMap = { '30d': 4, '3m': 12, '1y': 52 };
           const monthly = await getMonthlyStats(limitMap[chartFilter] || 4);
           if (Array.isArray(monthly) && monthly.length > 0) {
-            setChartData(monthly.map(m => ({
+            setChartData(stripCommits(monthly.map(m => ({
               name: m.month_start ? new Date(m.month_start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : (m.name || 'Period'),
               solved: m.problems_solved || m.solved || 0,
               commits: m.commits || 0,
-            })));
+            }))));
           } else {
             const activity = await getWeeklyActivity();
-            setChartData(activity);
+            setChartData(stripCommits(activity));
           }
         }
       } catch (e) {
@@ -409,10 +429,12 @@ export const Dashboard = () => {
                           <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
                           <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                         </linearGradient>
-                        <linearGradient id="colorCommits" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                        </linearGradient>
+                        {isConnectedGitHub && (
+                          <linearGradient id="colorCommits" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                          </linearGradient>
+                        )}
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                       <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
@@ -422,7 +444,9 @@ export const Dashboard = () => {
                         itemStyle={{ color: '#fff' }}
                       />
                       <Area type="monotone" dataKey="solved" stroke="#6366f1" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSolved)" name="Problems Solved" />
-                      <Area type="monotone" dataKey="commits" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorCommits)" name="GitHub Commits" />
+                      {isConnectedGitHub && (
+                        <Area type="monotone" dataKey="commits" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorCommits)" name="GitHub Commits" />
+                      )}
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
