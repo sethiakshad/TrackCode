@@ -27,6 +27,8 @@ export async function fetchCodeforcesProfile(username) {
 
   // Fetch user status (to get problems solved)
   let problemsSolved = 0;
+  const timeline = {};
+  
   try {
     const statusRes = await fetch(`${CF_API_BASE}/user.status?handle=${trimmed}`);
     if (statusRes.ok) {
@@ -34,9 +36,24 @@ export async function fetchCodeforcesProfile(username) {
       if (statusData.status === 'OK') {
         // Count unique problems solved
         const solvedSet = new Set();
+        
         statusData.result.forEach((submission) => {
           if (submission.verdict === 'OK' && submission.problem) {
-            solvedSet.add(`${submission.problem.contestId}-${submission.problem.index}`);
+            const probId = `${submission.problem.contestId}-${submission.problem.index}`;
+            if (!solvedSet.has(probId)) {
+              solvedSet.add(probId);
+              
+              // Add to timeline
+              if (submission.creationTimeSeconds) {
+                const date = new Date(submission.creationTimeSeconds * 1000);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
+                
+                timeline[dateStr] = (timeline[dateStr] || 0) + 1;
+              }
+            }
           }
         });
         problemsSolved = solvedSet.size;
@@ -59,6 +76,7 @@ export async function fetchCodeforcesProfile(username) {
     city: profile.city || '',
     firstName: profile.firstName || '',
     lastName: profile.lastName || '',
+    timeline: timeline,
   };
 }
 
@@ -79,9 +97,15 @@ export async function getCodeforcesProfile(userId) {
   // Or actually, wait. Let's just fetch it via settings api.
   const response = await apiClient.get('/settings');
   const cf = response.data?.connectedAccounts?.codeforces;
-  if (!cf) return null;
-  // If we just need the username to refetch, we can return the mock shape
-  return { username: cf.username };
+  if (!cf || !cf.username) return null;
+  
+  // Fetch full data from Codeforces API so context is fully populated on load
+  try {
+    return await fetchCodeforcesProfile(cf.username);
+  } catch (err) {
+    console.error('Failed to fetch full CF profile on load:', err);
+    return { username: cf.username }; // Fallback
+  }
 }
 
 /**

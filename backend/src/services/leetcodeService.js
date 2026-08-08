@@ -3,53 +3,208 @@ const prisma = require('../config/prisma');
 
 /**
  * Service to sync and query LeetCode profile and platform stats.
- * Uses a public unofficial LeetCode GraphQL API endpoint (or similar public API mirror/scraper).
+ * Uses LeetCode's official public GraphQL endpoint directly.
  */
 
-const LEETCODE_API_URL = 'https://leetcode-api-faisalshohag.vercel.app'; // Reliable public JSON proxy for LeetCode stats
+const LEETCODE_GRAPHQL_URL = 'https://leetcode.com/graphql';
+
+// Common headers for LeetCode GraphQL
+const LC_HEADERS = {
+  'Content-Type': 'application/json',
+  'Referer': 'https://leetcode.com',
+  'Origin': 'https://leetcode.com',
+};
+
+/**
+ * Make a GraphQL request to LeetCode with proper error handling.
+ */
+const leetcodeGraphQL = async (query, variables = {}) => {
+  try {
+    const response = await axios.post(
+      LEETCODE_GRAPHQL_URL,
+      { query, variables },
+      { headers: LC_HEADERS, timeout: 15000 }
+    );
+    return response.data;
+  } catch (err) {
+    if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+      const error = new Error('LeetCode API timed out. Please try again.');
+      error.statusCode = 504;
+      throw error;
+    }
+    if (err.response?.status === 429) {
+      const error = new Error('LeetCode rate limit reached. Please wait a minute and try again.');
+      error.statusCode = 429;
+      throw error;
+    }
+    if (err.response?.status >= 500) {
+      const error = new Error('LeetCode servers are currently unavailable. Please try again later.');
+      error.statusCode = 502;
+      throw error;
+    }
+    throw err;
+  }
+};
+
+/**
+ * Fetch LeetCode profile data via GraphQL without saving to DB.
+ * Used by the "preview" endpoint so the frontend can show stats before confirming.
+ */
+const fetchLeetCodePreview = async (username) => {
+  const query = `
+    query getUserProfile($username: String!) {
+      matchedUser(username: $username) {
+        username
+        profile {
+          ranking
+          realName
+          userAvatar
+          reputation
+          aboutMe
+          company
+          school
+          websites
+        }
+        submitStats: submitStatsGlobal {
+          acSubmissionNum {
+            difficulty
+            count
+          }
+        }
+        tagProblemCounts {
+          advanced { tagName tagSlug problemsSolved }
+          intermediate { tagName tagSlug problemsSolved }
+          fundamental { tagName tagSlug problemsSolved }
+        }
+      }
+      userContestRanking(username: $username) {
+        attendedContestsCount
+        rating
+        globalRanking
+        topPercentage
+      }
+    }
+  `;
+
+  const result = await leetcodeGraphQL(query, { username });
+
+  // Check for "user not found" errors
+  if (result.errors) {
+    const notFound = result.errors.some(e =>
+      e.message?.toLowerCase().includes('does not exist') ||
+      e.message?.toLowerCase().includes('not found')
+    );
+    if (notFound || !result.data?.matchedUser) {
+      const error = new Error(`User "${username}" not found on LeetCode.`);
+      error.statusCode = 404;
+      throw error;
+    }
+  }
+
+  if (!result.data?.matchedUser) {
+    const error = new Error(`User "${username}" not found on LeetCode.`);
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const user = result.data.matchedUser;
+  const stats = user.submitStats?.acSubmissionNum || [];
+  const contestRanking = result.data.userContestRanking;
+  const profile = user.profile || {};
+
+  const totalSolved = stats.find(s => s.difficulty === 'All')?.count || 0;
+  const easySolved = stats.find(s => s.difficulty === 'Easy')?.count || 0;
+  const mediumSolved = stats.find(s => s.difficulty === 'Medium')?.count || 0;
+  const hardSolved = stats.find(s => s.difficulty === 'Hard')?.count || 0;
+
+  return {
+    username: user.username,
+    ranking: profile.ranking || null,
+    contest_rating: contestRanking ? Math.round(contestRanking.rating) : null,
+    contest_ranking: contestRanking?.globalRanking || null,
+    contests_attended: contestRanking?.attendedContestsCount || 0,
+    problems_solved: totalSolved,
+    easy: easySolved,
+    medium: mediumSolved,
+    hard: hardSolved,
+    avatar: profile.userAvatar || null,
+    about: profile.aboutMe || '',
+    company: profile.company || '',
+    school: profile.school || '',
+    website: profile.websites || [],
+    reputation: profile.reputation || 0,
+    acceptance_rate: null,
+    tagProblemCounts: user.tagProblemCounts || null,
+  };
+};
+
+/**
+ * Fetch submission calendar and recent submissions for daily stats sync.
+ */
+const fetchLeetCodeActivity = async (username) => {
+  const query = `
+    query getUserActivity($username: String!) {
+      matchedUser(username: $username) {
+        submissionCalendar
+      }
+      recentSubmissionList(username: $username, limit: 50) {
+        title
+        titleSlug
+        timestamp
+        statusDisplay
+      }
+    }
+  `;
+
+  const result = await leetcodeGraphQL(query, { username });
+  return {
+    submissionCalendar: result.data?.matchedUser?.submissionCalendar || '{}',
+    recentSubmissions: result.data?.recentSubmissionList || [],
+  };
+};
 
 /**
  * Syncs LeetCode profile, solved counts, rating, submissions, topics and streaks.
  */
 const syncLeetcodeData = async (userId, username) => {
   try {
-    // 1. Fetch LeetCode details from public API
-    const response = await axios.get(`${LEETCODE_API_URL}/${username}`);
-    const data = response.data;
+    // 1. Fetch profile + solved stats + contest rating
+    const preview = await fetchLeetCodePreview(username);
 
-    if (!data || data.errors) {
-      throw new Error('Could not fetch LeetCode data for username');
-    }
-
-    // 2. Update LeetCode profile info
+    // 2. Upsert LeetCode profile in DB
     const profile = await prisma.leetcode_profiles.upsert({
       where: { user_id: userId },
       update: {
-        username,
-        ranking: data.ranking || 0,
-        problems_solved: data.totalSolved || 0,
-        easy: data.easySolved || 0,
-        medium: data.mediumSolved || 0,
-        hard: data.hardSolved || 0,
+        username: preview.username,
+        ranking: preview.ranking,
+        contest_rating: preview.contest_rating,
+        problems_solved: preview.problems_solved,
+        easy: preview.easy,
+        medium: preview.medium,
+        hard: preview.hard,
         synced_at: new Date(),
       },
       create: {
         user_id: userId,
-        username,
-        ranking: data.ranking || 0,
-        problems_solved: data.totalSolved || 0,
-        easy: data.easySolved || 0,
-        medium: data.mediumSolved || 0,
-        hard: data.hardSolved || 0,
+        username: preview.username,
+        ranking: preview.ranking,
+        contest_rating: preview.contest_rating,
+        problems_solved: preview.problems_solved,
+        easy: preview.easy,
+        medium: preview.medium,
+        hard: preview.hard,
         synced_at: new Date(),
       },
     });
 
-    // 3. Sync topic stats / mastery based on solved tags
-    if (data.matchedUser && data.matchedUser.tagProblemCounts) {
-      const tagStats = data.matchedUser.tagProblemCounts;
-      const allTags = [...tagStats.advanced, ...tagStats.intermediate, ...tagStats.fundamental];
-      
+    // 3. Sync topic mastery from tag problem counts
+    if (preview.tagProblemCounts) {
+      const allTags = [
+        ...(preview.tagProblemCounts.advanced || []),
+        ...(preview.tagProblemCounts.intermediate || []),
+        ...(preview.tagProblemCounts.fundamental || []),
+      ];
+
       for (const tag of allTags) {
         await prisma.topic_mastery.upsert({
           where: {
@@ -60,7 +215,7 @@ const syncLeetcodeData = async (userId, username) => {
           },
           update: {
             solved: tag.problemsSolved,
-            accuracy: 90.00, // Approximate/default accuracy score
+            accuracy: 90.00,
             mastery_score: tag.problemsSolved * 10,
             updated_at: new Date(),
           },
@@ -76,12 +231,15 @@ const syncLeetcodeData = async (userId, username) => {
       }
     }
 
-    // 4. Parse submissionCalendar and upsert into daily_stats for accurate daily activity
+    // 4. Fetch activity data (submission calendar + recent submissions)
     let calendarEntriesCount = 0;
-    if (data && data.submissionCalendar) {
-      let calendar = data.submissionCalendar;
+    try {
+      const activity = await fetchLeetCodeActivity(username);
+
+      // Parse submissionCalendar and upsert into daily_stats
+      let calendar = activity.submissionCalendar;
       if (typeof calendar === 'string') {
-        try { calendar = JSON.parse(calendar); } catch (e) {}
+        try { calendar = JSON.parse(calendar); } catch (e) { calendar = {}; }
       }
       if (typeof calendar === 'object' && calendar !== null) {
         for (const [timestampStr, count] of Object.entries(calendar)) {
@@ -116,70 +274,67 @@ const syncLeetcodeData = async (userId, username) => {
           }
         }
       }
-    }
 
-    // Refine recent stats using recentSubmissions to get accurate unique problems solved (not just submission count)
-    if (data.recentSubmissions && Array.isArray(data.recentSubmissions)) {
-      const acceptedPerDate = {}; // dateStr -> Set of titleSlugs
+      // Refine recent stats using recentSubmissions for accurate unique problems solved
+      if (Array.isArray(activity.recentSubmissions)) {
+        const acceptedPerDate = {};
 
-      for (const sub of data.recentSubmissions) {
-        if (sub.statusDisplay === 'Accepted' && sub.timestamp) {
-          const ts = parseInt(sub.timestamp, 10);
-          // LeetCode timestamps are Unix seconds
-          const d = new Date((ts > 1e12 ? ts : ts * 1000)); // handle both ms and s
-          const dateStr = d.toISOString().split('T')[0]; // always UTC date
+        for (const sub of activity.recentSubmissions) {
+          if (sub.statusDisplay === 'Accepted' && sub.timestamp) {
+            const ts = parseInt(sub.timestamp, 10);
+            const d = new Date((ts > 1e12 ? ts : ts * 1000));
+            const dateStr = d.toISOString().split('T')[0];
 
-          if (!acceptedPerDate[dateStr]) {
-            acceptedPerDate[dateStr] = new Set();
+            if (!acceptedPerDate[dateStr]) {
+              acceptedPerDate[dateStr] = new Set();
+            }
+            acceptedPerDate[dateStr].add(sub.titleSlug);
           }
-          acceptedPerDate[dateStr].add(sub.titleSlug);
         }
-      }
 
-      // Upsert: never reduce existing count (take max so submissionCalendar isn't overwritten downward)
-      for (const [dateStr, uniqueProblemsSet] of Object.entries(acceptedPerDate)) {
-        const exactCount = uniqueProblemsSet.size;
-        if (exactCount > 0) {
-          // Fetch existing row first so we can take the max
-          const existing = await prisma.daily_stats.findFirst({
-            where: { user_id: userId, date: new Date(dateStr) },
-          });
-          const finalCount = existing
-            ? Math.max(existing.problems_solved || 0, exactCount)
-            : exactCount;
+        for (const [dateStr, uniqueProblemsSet] of Object.entries(acceptedPerDate)) {
+          const exactCount = uniqueProblemsSet.size;
+          if (exactCount > 0) {
+            const existing = await prisma.daily_stats.findFirst({
+              where: { user_id: userId, date: new Date(dateStr) },
+            });
+            const finalCount = existing
+              ? Math.max(existing.problems_solved || 0, exactCount)
+              : exactCount;
 
-          calendarEntriesCount++;
-          await prisma.daily_stats.upsert({
-            where: {
-              user_id_date: {
+            calendarEntriesCount++;
+            await prisma.daily_stats.upsert({
+              where: {
+                user_id_date: {
+                  user_id: userId,
+                  date: new Date(dateStr),
+                },
+              },
+              update: {
+                problems_solved: finalCount,
+              },
+              create: {
                 user_id: userId,
                 date: new Date(dateStr),
+                problems_solved: finalCount,
+                commits: 0,
+                contests_played: 0,
+                xp_earned: finalCount * 10,
+                study_minutes: finalCount * 15,
               },
-            },
-            update: {
-              problems_solved: finalCount,
-            },
-            create: {
-              user_id: userId,
-              date: new Date(dateStr),
-              problems_solved: finalCount,
-              commits: 0,
-              contests_played: 0,
-              xp_earned: finalCount * 10,
-              study_minutes: finalCount * 15,
-            },
-          });
+            });
+          }
         }
       }
+    } catch (activityErr) {
+      console.warn('[LEETCODE SYNC] Activity fetch failed (non-critical):', activityErr.message);
     }
 
-    const totalSolved = (data.totalSolved || data.solvedProblem || 0);
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-
-    // Fallback: If submissionCalendar was empty or missing from API response, but user has solved problems:
-    if (calendarEntriesCount === 0 && totalSolved > 0) {
-      const activeSolved = Math.min(totalSolved, 4);
+    // Fallback: If submissionCalendar was empty but user has solved problems
+    if (calendarEntriesCount === 0 && preview.problems_solved > 0) {
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const activeSolved = Math.min(preview.problems_solved, 4);
       await prisma.daily_stats.upsert({
         where: {
           user_id_date: {
@@ -202,25 +357,26 @@ const syncLeetcodeData = async (userId, username) => {
       });
     }
 
-    // 5. Update coding streak details on dashboard summary
+    // 5. Update dashboard summary
     await prisma.dashboard_summary.upsert({
       where: { user_id: userId },
       update: {
-        total_solved: data.totalSolved || 0,
-        streak: data.streak || 1,
+        total_solved: preview.problems_solved,
+        contest_rating: preview.contest_rating || 0,
+        streak: 1,
         updated_at: new Date(),
       },
       create: {
         user_id: userId,
-        total_solved: data.totalSolved || 0,
-        streak: data.streak || 1,
+        total_solved: preview.problems_solved,
+        contest_rating: preview.contest_rating || 0,
+        streak: 1,
         updated_at: new Date(),
       },
     });
 
     return profile;
-  }
-  catch (error) {
+  } catch (error) {
     console.error('[LEETCODE SYNC ERROR]', error.message);
     throw error;
   }
@@ -279,6 +435,7 @@ const getTopicStatistics = async (userId) => {
 };
 
 module.exports = {
+  fetchLeetCodePreview,
   syncLeetcodeData,
   getLeetcodeProfile,
   getSolvedProblems,

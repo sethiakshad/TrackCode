@@ -6,6 +6,7 @@ const leetcodeController = require('../controllers/leetcodeController');
 // All LeetCode endpoints require authentication
 router.use(authenticate);
 
+router.get('/preview/:username', authenticate, leetcodeController.previewProfile);
 router.post('/connect', leetcodeController.connectLeetcode);
 router.get('/profile', leetcodeController.getLeetcodeProfile);
 router.get('/solved', leetcodeController.getSolvedProblems);

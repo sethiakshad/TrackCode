@@ -74,8 +74,14 @@ export async function saveCodechefProfile(userId, profileData) {
 export async function getCodechefProfile(userId) {
   const response = await apiClient.get('/settings');
   const cc = response.data?.connectedAccounts?.codechef;
-  if (!cc) return null;
-  return { username: cc.username };
+  if (!cc || !cc.username) return null;
+  
+  try {
+    return await fetchCodechefProfile(cc.username);
+  } catch (err) {
+    console.error('Failed to fetch full CC profile on load:', err);
+    return { username: cc.username };
+  }
 }
 
 /**

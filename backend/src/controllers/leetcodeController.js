@@ -1,5 +1,31 @@
 const leetcodeService = require('../services/leetcodeService');
 
+const previewProfile = async (req, res, next) => {
+  try {
+    const { username } = req.params;
+    if (!username || !username.trim()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'LeetCode username is required',
+      });
+    }
+
+    const preview = await leetcodeService.fetchLeetCodePreview(username.trim());
+    res.json({
+      status: 'success',
+      data: preview,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        status: 'error',
+        message: error.message,
+      });
+    }
+    next(error);
+  }
+};
+
 const connectLeetcode = async (req, res, next) => {
   try {
     const { username } = req.body;
@@ -17,6 +43,12 @@ const connectLeetcode = async (req, res, next) => {
       data: profile,
     });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        status: 'error',
+        message: error.message,
+      });
+    }
     next(error);
   }
 };
@@ -103,6 +135,7 @@ const syncLeetcode = async (req, res, next) => {
 };
 
 module.exports = {
+  previewProfile,
   connectLeetcode,
   getLeetcodeProfile,
   getSolvedProblems,

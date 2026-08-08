@@ -1,49 +1,37 @@
 import apiClient from '../lib/axios';
 
-const LEETCODE_API_BASE = 'https://alfa-leetcode-api.onrender.com';
 const VERIFICATION_RETRY_COUNT = 5;
 const VERIFICATION_RETRY_DELAY_MS = 3000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const fetchWithTimeout = async (url, timeoutMs = 45000) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    return await fetch(url, {
-      signal: controller.signal,
-      cache: 'no-store',
-    });
-  } finally {
-    clearTimeout(timeoutId);
-  }
-};
-
 /**
- * Fetch raw profile payload from LeetCode API (includes bio/website fields).
+ * Fetch raw profile payload from our backend (which calls LeetCode GraphQL).
+ * Used by verification flow to check if verification code is in the profile.
  * @param {string} username
  */
 export async function fetchLeetCodeProfileRaw(username) {
   const trimmed = username.trim();
   if (!trimmed) throw new Error('Username cannot be empty');
 
-  const profileRes = await fetchWithTimeout(
-    `${LEETCODE_API_BASE}/${encodeURIComponent(trimmed)}?t=${Date.now()}`
-  );
-
-  if (!profileRes.ok) {
-    if (profileRes.status === 404) throw new Error(`User "${trimmed}" not found on LeetCode`);
-    throw new Error('Failed to fetch LeetCode profile. The API may be warming up — try again in 30s.');
+  try {
+    const response = await apiClient.get(`/leetcode/preview/${encodeURIComponent(trimmed)}`);
+    return response.data?.data || response.data;
+  } catch (err) {
+    if (err.response?.status === 404) {
+      throw new Error(`User "${trimmed}" not found on LeetCode`);
+    }
+    if (err.response?.status === 429) {
+      throw new Error('LeetCode rate limit reached. Please wait a minute and try again.');
+    }
+    if (err.response?.status === 504) {
+      throw new Error('LeetCode API timed out. Please try again in a moment.');
+    }
+    if (err.response?.data?.message) {
+      throw new Error(err.response.data.message);
+    }
+    throw new Error('Failed to fetch LeetCode profile. Please check your connection and try again.');
   }
-
-  const profile = await profileRes.json();
-
-  if (profile.errors || profile.error) {
-    throw new Error(`User "${trimmed}" not found on LeetCode`);
-  }
-
-  return profile;
 }
 
 const collectVerificationText = (profile) => {
@@ -97,7 +85,9 @@ export async function verifyLeetCodeOwnership(username, verificationCode) {
 }
 
 /**
- * Fetch a LeetCode profile from the public API.
+ * Fetch a LeetCode profile preview from our backend.
+ * This calls our backend's /leetcode/preview/:username endpoint,
+ * which in turn calls LeetCode's official GraphQL API.
  * @param {string} username - LeetCode username
  * @returns {Promise<object>} Normalized profile data
  */
@@ -105,49 +95,42 @@ export async function fetchLeetCodeProfile(username) {
   const trimmed = username.trim();
   if (!trimmed) throw new Error('Username cannot be empty');
 
-  const profile = await fetchLeetCodeProfileRaw(trimmed);
+  try {
+    const response = await apiClient.get(`/leetcode/preview/${encodeURIComponent(trimmed)}`);
+    const data = response.data?.data || response.data;
 
-  // Fetch contest and solved statistics in parallel
-  const [contestRes, solvedRes] = await Promise.all([
-    fetchWithTimeout(`${LEETCODE_API_BASE}/${encodeURIComponent(trimmed)}/contest?t=${Date.now()}`),
-    fetchWithTimeout(`${LEETCODE_API_BASE}/${encodeURIComponent(trimmed)}/solved?t=${Date.now()}`),
-  ]);
-
-  let contestData = {};
-  if (contestRes.ok) {
-    try {
-      contestData = await contestRes.json();
-    } catch {
-      // contest data is optional
+    return {
+      username: data.username || trimmed,
+      ranking: data.ranking || null,
+      contest_rating: data.contest_rating || null,
+      problems_solved: data.problems_solved || 0,
+      easy: data.easy || 0,
+      medium: data.medium || 0,
+      hard: data.hard || 0,
+      acceptance_rate: data.acceptance_rate || null,
+      reputation: data.reputation || 0,
+      contribution_points: data.contribution_points || 0,
+      avatar: data.avatar || null,
+      about: data.about || '',
+      company: data.company || '',
+      school: data.school || '',
+      website: data.website || [],
+    };
+  } catch (err) {
+    if (err.response?.status === 404) {
+      throw new Error(`User "${trimmed}" not found on LeetCode`);
     }
-  }
-
-  let solvedData = {};
-  if (solvedRes.ok) {
-    try {
-      solvedData = await solvedRes.json();
-    } catch {
-      // solved data is optional
+    if (err.response?.status === 429) {
+      throw new Error('LeetCode rate limit reached. Please wait a minute and try again.');
     }
+    if (err.response?.status === 504) {
+      throw new Error('LeetCode API timed out. Please try again in a moment.');
+    }
+    if (err.response?.data?.message) {
+      throw new Error(err.response.data.message);
+    }
+    throw new Error('Failed to fetch LeetCode profile. Please check your connection and try again.');
   }
-
-  return {
-    username: trimmed,
-    ranking: profile.ranking || null,
-    contest_rating: Math.round(contestData.contestRating || 0) || null,
-    problems_solved: solvedData.solvedProblem || profile.totalSolved || 0,
-    easy: solvedData.easySolved || profile.easySolved || 0,
-    medium: solvedData.mediumSolved || profile.mediumSolved || 0,
-    hard: solvedData.hardSolved || profile.hardSolved || 0,
-    acceptance_rate: profile.acceptanceRate || null,
-    reputation: profile.reputation || 0,
-    contribution_points: profile.contributionPoints || 0,
-    avatar: profile.avatar || null,
-    about: profile.about || '',
-    company: profile.company || '',
-    school: profile.school || '',
-    website: profile.website || [],
-  };
 }
 
 /**
@@ -167,7 +150,7 @@ export async function saveLeetCodeProfile(userId, profileData) {
 export async function getLeetCodeProfile(userId) {
   try {
     const response = await apiClient.get('/leetcode/profile');
-    return response.data || null;
+    return response.data?.data || response.data || null;
   } catch (error) {
     if (error.response?.status === 404) return null;
     throw error;

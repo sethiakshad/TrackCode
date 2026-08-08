@@ -67,7 +67,9 @@ const StatCard = ({ title, value, numericValue, trend, icon: Icon, colorClass, d
     );
   }
 
-  const isPositive = trend && trend.startsWith('+');
+  const isPositive = typeof trend === 'string' && trend.startsWith('+');
+  const isNegative = typeof trend === 'string' && trend.startsWith('-');
+  const isNeutral = !isPositive && !isNegative;
 
   return (
     <motion.div
@@ -82,11 +84,12 @@ const StatCard = ({ title, value, numericValue, trend, icon: Icon, colorClass, d
             <div className="flex items-baseline space-x-2">
               <h3 className="text-3xl font-extrabold text-white tracking-tight">
                 {numericValue ? animatedValue.toLocaleString() : value}
-                {title.toLowerCase().includes('streak') ? ' Days' : ''}
+                {typeof title === 'string' && title.toLowerCase().includes('streak') ? ' Days' : ''}
               </h3>
               {trend && (
-                <span className={`inline-flex items-center text-xs font-bold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {isPositive ? <ArrowUpRight className="h-3.5 w-3.5 mr-0.5" /> : <ArrowDownRight className="h-3.5 w-3.5 mr-0.5" />}
+                <span className={`inline-flex items-center text-[10px] sm:text-xs font-bold ${isPositive ? 'text-emerald-400' : isNegative ? 'text-red-400' : 'text-slate-400'}`}>
+                  {isPositive && <ArrowUpRight className="h-3.5 w-3.5 mr-0.5" />}
+                  {isNegative && <ArrowDownRight className="h-3.5 w-3.5 mr-0.5" />}
                   {trend}
                 </span>
               )}
@@ -119,6 +122,8 @@ export const Dashboard = () => {
   const [showCFModal, setShowCFModal] = useState(false);
   const [showCCModal, setShowCCModal] = useState(false);
   
+  const [selectedRatingPlatform, setSelectedRatingPlatform] = useState('max');
+  
   const [dbSummary, setDbSummary] = useState(null);
   const [chartData, setChartData] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
@@ -147,11 +152,35 @@ export const Dashboard = () => {
         console.log('[Dashboard] topics:', topics, 'isArray:', Array.isArray(topics));
 
         setDbSummary(summary);
+        
+        const mergeTimelines = (baseData) => {
+          if (!baseData || !Array.isArray(baseData)) return [];
+          const merged = baseData.map(r => ({ ...r }));
+          if (isConnectedCodeforces && cfProfile?.timeline) {
+            merged.forEach(row => {
+              let add = 0;
+              if (row.date && cfProfile.timeline[row.date]) {
+                add += cfProfile.timeline[row.date];
+              } else if (row.month_start) {
+                const md = new Date(row.month_start);
+                const prefix = `${md.getFullYear()}-${String(md.getMonth() + 1).padStart(2, '0')}-`;
+                Object.keys(cfProfile.timeline).forEach(k => {
+                  if (k.startsWith(prefix)) add += cfProfile.timeline[k];
+                });
+              }
+              row.solved = (row.solved || 0) + add;
+            });
+          }
+          return merged;
+        };
+
         const activityRows = Array.isArray(activity) ? activity : [];
         setChartData(
-          isConnectedGitHub
-            ? activityRows
-            : activityRows.map(r => ({ ...r, commits: undefined }))
+          mergeTimelines(
+            isConnectedGitHub
+              ? activityRows
+              : activityRows.map(r => ({ ...r, commits: undefined }))
+          )
         );
         setUpcomingEvents(Array.isArray(contests) ? contests : []);
         setAiFeedback(feedback);
@@ -194,24 +223,46 @@ export const Dashboard = () => {
           return safe.map(r => ({ ...r, commits: isConnectedGitHub ? (r.commits || 0) : undefined }));
         };
 
+        const mergeTimelines = (baseData) => {
+          if (!baseData) return [];
+          const merged = [...baseData];
+          if (isConnectedCodeforces && cfProfile?.timeline) {
+            merged.forEach(row => {
+              let add = 0;
+              if (row.date && cfProfile.timeline[row.date]) {
+                add += cfProfile.timeline[row.date];
+              } else if (row.month_start) {
+                const md = new Date(row.month_start);
+                const prefix = `${md.getFullYear()}-${String(md.getMonth() + 1).padStart(2, '0')}-`;
+                Object.keys(cfProfile.timeline).forEach(k => {
+                  if (k.startsWith(prefix)) add += cfProfile.timeline[k];
+                });
+              }
+              row.solved = (row.solved || 0) + add;
+            });
+          }
+          return merged;
+        };
+
         if (chartFilter === '7d') {
           const activity = await getWeeklyActivity();
-          setChartData(stripCommits(activity));
+          setChartData(mergeTimelines(stripCommits(activity)));
         } else if (chartFilter === 'custom' && customStart && customEnd) {
           const customData = await getCustomStats(customStart, customEnd);
-          setChartData(stripCommits(customData || []));
+          setChartData(mergeTimelines(stripCommits(customData || [])));
         } else {
           const limitMap = { '30d': 4, '3m': 12, '1y': 52 };
           const monthly = await getMonthlyStats(limitMap[chartFilter] || 4);
           if (Array.isArray(monthly) && monthly.length > 0) {
-            setChartData(stripCommits(monthly.map(m => ({
+            setChartData(mergeTimelines(stripCommits(monthly.map(m => ({
               name: m.month_start ? new Date(m.month_start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : (m.name || 'Period'),
               solved: m.problems_solved || m.solved || 0,
               commits: m.commits || 0,
-            }))));
+              month_start: m.month_start,
+            })))));
           } else {
             const activity = await getWeeklyActivity();
-            setChartData(stripCommits(activity));
+            setChartData(mergeTimelines(stripCommits(activity)));
           }
         }
       } catch (e) {
@@ -219,7 +270,7 @@ export const Dashboard = () => {
       }
     };
     updateChart();
-  }, [chartFilter, user?.id]);
+  }, [chartFilter, user?.id, isConnectedCodeforces, cfProfile]);
 
 
   return (
@@ -320,9 +371,12 @@ export const Dashboard = () => {
           value={hasConnectedProfiles ? ((isConnectedLeetCode ? (lcProfile?.problems_solved || 0) : 0) + (isConnectedCodeforces ? (cfProfile?.problems_solved || 0) : 0) + (isConnectedCodechef ? (ccProfile?.problems_solved || 0) : 0)).toLocaleString() : '—'} 
           numericValue={hasConnectedProfiles ? ((isConnectedLeetCode ? (lcProfile?.problems_solved || 0) : 0) + (isConnectedCodeforces ? (cfProfile?.problems_solved || 0) : 0) + (isConnectedCodechef ? (ccProfile?.problems_solved || 0) : 0)) : 0}
           trend={
-            isConnectedLeetCode ? `LC: ${lcProfile?.problems_solved || 0}` :
-            isConnectedCodeforces ? `CF: ${cfProfile?.problems_solved || 0}` :
-            isConnectedCodechef ? `CC: ${ccProfile?.problems_solved || 0}` : 'Connect Profiles'
+            !hasConnectedProfiles ? 'Connect Profiles' :
+            [
+              isConnectedLeetCode && `LC: ${lcProfile?.problems_solved || 0}`,
+              isConnectedCodeforces && `CF: ${cfProfile?.problems_solved || 0}`,
+              isConnectedCodechef && `CC: ${ccProfile?.problems_solved || 0}`
+            ].filter(Boolean).join(' • ')
           }
           icon={Code2} 
           colorClass="bg-gradient-to-br from-primary-500 to-indigo-600 shadow-lg shadow-primary-500/20"
@@ -350,21 +404,53 @@ export const Dashboard = () => {
           loading={loading}
         />
         <StatCard 
-          title="Contest Rating" 
-          value={
-            isConnectedLeetCode && lcProfile?.contest_rating ? lcProfile.contest_rating.toLocaleString() :
-            isConnectedCodeforces && cfProfile?.rating ? cfProfile.rating.toLocaleString() :
-            isConnectedCodechef && ccProfile?.rating ? ccProfile.rating.toLocaleString() : '—'
-          } 
-          numericValue={
-            isConnectedLeetCode && lcProfile?.contest_rating ? lcProfile.contest_rating :
-            isConnectedCodeforces && cfProfile?.rating ? cfProfile.rating :
-            isConnectedCodechef && ccProfile?.rating ? ccProfile.rating : 0
+          title={
+            <span className="flex justify-between items-center w-full">
+              <span>Contest Rating</span>
+              {hasConnectedProfiles && (
+                <select 
+                  className="bg-slate-800/80 text-[10px] border border-white/10 rounded px-1 py-0.5 outline-none text-white cursor-pointer hover:bg-slate-700 transition-colors"
+                  value={selectedRatingPlatform}
+                  onChange={e => setSelectedRatingPlatform(e.target.value)}
+                  title="Select which rating to display"
+                >
+                  <option value="max">Max</option>
+                  {isConnectedLeetCode && <option value="lc">LC</option>}
+                  {isConnectedCodeforces && <option value="cf">CF</option>}
+                  {isConnectedCodechef && <option value="cc">CC</option>}
+                </select>
+              )}
+            </span>
           }
+          value={(() => {
+            let val = 0;
+            if (selectedRatingPlatform === 'lc') val = lcProfile?.contest_rating || 0;
+            else if (selectedRatingPlatform === 'cf') val = cfProfile?.rating || 0;
+            else if (selectedRatingPlatform === 'cc') val = ccProfile?.rating || 0;
+            else val = Math.max(
+              (isConnectedLeetCode && lcProfile?.contest_rating) || 0,
+              (isConnectedCodeforces && cfProfile?.rating) || 0,
+              (isConnectedCodechef && ccProfile?.rating) || 0
+            ) || 0;
+            return val ? val.toLocaleString() : 'Unrated';
+          })()} 
+          numericValue={(() => {
+            if (selectedRatingPlatform === 'lc') return lcProfile?.contest_rating || 0;
+            if (selectedRatingPlatform === 'cf') return cfProfile?.rating || 0;
+            if (selectedRatingPlatform === 'cc') return ccProfile?.rating || 0;
+            return Math.max(
+              (isConnectedLeetCode && lcProfile?.contest_rating) || 0,
+              (isConnectedCodeforces && cfProfile?.rating) || 0,
+              (isConnectedCodechef && ccProfile?.rating) || 0
+            ) || 0;
+          })()}
           trend={
-            isConnectedLeetCode && lcProfile?.ranking ? `LC Rank #${lcProfile.ranking.toLocaleString()}` :
-            isConnectedCodeforces && cfProfile?.rank ? `CF: ${cfProfile.rank}` :
-            isConnectedCodechef && ccProfile?.stars ? `CC: ${ccProfile.stars}` : 'Connect Profiles'
+            !hasConnectedProfiles ? 'Connect Profiles' :
+            [
+              isConnectedLeetCode && lcProfile?.ranking && `LC: #${lcProfile.ranking.toLocaleString()}`,
+              isConnectedCodeforces && cfProfile?.rank && `CF: ${cfProfile.rank}`,
+              isConnectedCodechef && ccProfile?.stars && `CC: ${ccProfile.stars}`
+            ].filter(Boolean).join(' • ') || 'No ratings'
           }
           icon={Trophy} 
           colorClass="bg-gradient-to-br from-cyan-500 to-blue-500 shadow-lg shadow-cyan-500/20"
