@@ -18,18 +18,10 @@ const getDailyGoals = async (req, res, next) => {
   }
 };
 
-const getWeeklyProgress = async (req, res, next) => {
+const getActivityProgress = async (req, res, next) => {
   try {
-    const progress = await dashboardService.getWeeklyProgress(req.userId);
-    res.json({ status: 'success', data: progress });
-  } catch (error) {
-    next(error);
-  }
-};
-
-const getMonthlyProgress = async (req, res, next) => {
-  try {
-    const progress = await dashboardService.getMonthlyProgress(req.userId);
+    const days = parseInt(req.query.limit, 10) || 7;
+    const progress = await dashboardService.getActivityProgress(req.userId, days);
     res.json({ status: 'success', data: progress });
   } catch (error) {
     next(error);
@@ -102,8 +94,7 @@ const getUpcomingContests = async (req, res, next) => {
 module.exports = {
   getDashboardSummary,
   getDailyGoals,
-  getWeeklyProgress,
-  getMonthlyProgress,
+  getActivityProgress,
   getCodingStreak,
   getGithubSummary,
   getLeetcodeSummary,

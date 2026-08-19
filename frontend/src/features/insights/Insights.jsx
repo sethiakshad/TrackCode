@@ -30,16 +30,9 @@ export const Analytics = () => {
           getAnalyticsOverview(user.id)
         ]);
         
-        setMasteryData(mastery.length ? mastery : [
-          { subject: 'Arrays & Hashing', A: 0, fullMark: 100 },
-          { subject: 'Strings', A: 0, fullMark: 100 }
-        ]);
+        setMasteryData(mastery.length ? mastery : []);
         
-        setDifficultyData(difficulty.length ? difficulty : [
-          { name: 'Easy', count: 0, fill: '#10b981' },
-          { name: 'Medium', count: 0, fill: '#f59e0b' },
-          { name: 'Hard', count: 0, fill: '#ef4444' },
-        ]);
+        setDifficultyData(difficulty.length ? difficulty : []);
         
         setOverview(overviewStats);
       } catch (err) {

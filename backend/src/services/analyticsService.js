@@ -14,48 +14,27 @@ const getTopicMastery = async (userId) => {
  * Difficulty Distribution: Total counts of solved problems by difficulty.
  */
 const getDifficultyDistribution = async (userId) => {
-  const solvedProblems = await prisma.user_problem_history.findMany({
-    where: {
-      user_id: userId,
-      status: 'solved',
-    },
-    include: {
-      problems: true,
-    },
-  });
-
-  const distribution = { easy: 0, medium: 0, hard: 0, unknown: 0 };
-  solvedProblems.forEach((history) => {
-    const diff = (history.problems.difficulty || 'unknown').toLowerCase();
-    if (distribution[diff] !== undefined) {
-      distribution[diff]++;
-    } else {
-      distribution.unknown++;
-    }
+  // Aggregate difficulty across all platforms if possible, but mainly LeetCode
+  const lcProfile = await prisma.leetcode_profiles.findUnique({
+    where: { user_id: userId },
   });
 
   return [
-    { name: 'Easy', count: distribution.easy, fill: '#10b981' },
-    { name: 'Medium', count: distribution.medium, fill: '#f59e0b' },
-    { name: 'Hard', count: distribution.hard, fill: '#ef4444' },
+    { name: 'Easy', count: lcProfile?.easy || 0, fill: '#10b981' },
+    { name: 'Medium', count: lcProfile?.medium || 0, fill: '#f59e0b' },
+    { name: 'Hard', count: lcProfile?.hard || 0, fill: '#ef4444' },
   ];
 };
 
 /**
- * Acceptance Rate: Total solved versus total attempted.
+ * Acceptance Rate: LeetCode no longer easily exposes global acceptance rate via GraphQL.
+ * Returning 0 or null cleanly so the frontend doesn't show fake values.
  */
 const getAcceptanceRate = async (userId) => {
-  const totalAttempted = await prisma.user_problem_history.count({
-    where: { user_id: userId },
-  });
-  const totalSolved = await prisma.user_problem_history.count({
-    where: { user_id: userId, status: 'solved' },
-  });
-
   return {
-    attempted: totalAttempted,
-    solved: totalSolved,
-    rate: totalAttempted > 0 ? parseFloat(((totalSolved / totalAttempted) * 100).toFixed(2)) : 0,
+    attempted: 0,
+    solved: 0,
+    rate: 0, // Frontend handles 0 as N/A or gracefully
   };
 };
 

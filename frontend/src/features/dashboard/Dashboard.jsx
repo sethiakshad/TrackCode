@@ -14,9 +14,9 @@ import { ConnectLeetCodeModal } from '../../components/ui/ConnectLeetCodeModal';
 import { ConnectGitHubModal } from '../../components/ui/ConnectGitHubModal';
 import { ConnectCodeforcesModal } from '../../components/ui/ConnectCodeforcesModal';
 import { ConnectCodechefModal } from '../../components/ui/ConnectCodechefModal';
-import { getDashboardSummary, getWeeklyActivity, getUpcomingContests } from '../../lib/api/dashboardApi';
+import { getDashboardSummary, getActivityProgress, getUpcomingContests } from '../../lib/api/dashboardApi';
 import { getGoals } from '../../lib/api/goalsApi';
-import { getTopicMastery, getHeatmapData, getMonthlyStats, getCustomStats } from '../../lib/api/analyticsApi';
+import { getTopicMastery, getHeatmapData, getCustomStats } from '../../lib/api/analyticsApi';
 import { getAiFeedbackSummary } from '../../lib/api/coachApi';
 
 
@@ -139,7 +139,7 @@ export const Dashboard = () => {
         setLoading(true);
         const [summary, activity, contests, goalsList, topics, feedback] = await Promise.all([
           getDashboardSummary(user.id),
-          getWeeklyActivity(user.id),
+          getActivityProgress(7),
           getUpcomingContests(),
           getGoals(user.id),
           getTopicMastery(user.id),
@@ -245,25 +245,23 @@ export const Dashboard = () => {
         };
 
         if (chartFilter === '7d') {
-          const activity = await getWeeklyActivity();
+          const activity = await getActivityProgress(7);
+          setChartData(mergeTimelines(stripCommits(activity)));
+        } else if (chartFilter === '30d') {
+          const activity = await getActivityProgress(30);
+          setChartData(mergeTimelines(stripCommits(activity)));
+        } else if (chartFilter === '3m') {
+          const activity = await getActivityProgress(90);
+          setChartData(mergeTimelines(stripCommits(activity)));
+        } else if (chartFilter === '1y') {
+          const activity = await getActivityProgress(365);
           setChartData(mergeTimelines(stripCommits(activity)));
         } else if (chartFilter === 'custom' && customStart && customEnd) {
           const customData = await getCustomStats(customStart, customEnd);
           setChartData(mergeTimelines(stripCommits(customData || [])));
         } else {
-          const limitMap = { '30d': 4, '3m': 12, '1y': 52 };
-          const monthly = await getMonthlyStats(limitMap[chartFilter] || 4);
-          if (Array.isArray(monthly) && monthly.length > 0) {
-            setChartData(mergeTimelines(stripCommits(monthly.map(m => ({
-              name: m.month_start ? new Date(m.month_start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : (m.name || 'Period'),
-              solved: m.problems_solved || m.solved || 0,
-              commits: m.commits || 0,
-              month_start: m.month_start,
-            })))));
-          } else {
-            const activity = await getWeeklyActivity();
-            setChartData(mergeTimelines(stripCommits(activity)));
-          }
+          const activity = await getActivityProgress(7);
+          setChartData(mergeTimelines(stripCommits(activity)));
         }
       } catch (e) {
         console.error("Failed to update chart filter:", e);
@@ -529,7 +527,7 @@ export const Dashboard = () => {
                         contentStyle={{ backgroundColor: 'rgba(15,23,42,0.95)', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.5)' }}
                         itemStyle={{ color: '#fff' }}
                       />
-                      <Area type="monotone" dataKey="solved" stroke="#6366f1" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSolved)" name="Problems Solved" />
+                      <Area type="monotone" dataKey="solved" stroke="#6366f1" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSolved)" name="Activity" />
                       {isConnectedGitHub && (
                         <Area type="monotone" dataKey="commits" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorCommits)" name="GitHub Commits" />
                       )}
@@ -619,10 +617,10 @@ export const Dashboard = () => {
                     <Target className="h-4 w-4 text-primary-400" />
                     <span className="text-sm font-semibold text-white">Daily Target</span>
                   </div>
-                  <p className="text-xs text-dark-textMuted">Solve 5 problems a day</p>
+                  <p className="text-xs text-dark-textMuted">Solve {dailyGoal.target || 0} problems a day</p>
                 </div>
                 <span className="text-sm font-bold text-white bg-slate-800 px-2 py-1 rounded-lg">
-                  {dailyGoal.solved} / {dailyGoal.target}
+                  {dailyGoal.solved || 0} / {dailyGoal.target || 0}
                 </span>
               </div>
               
@@ -630,7 +628,7 @@ export const Dashboard = () => {
               <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
                 <motion.div 
                   initial={{ width: 0 }} 
-                  animate={{ width: `${(dailyGoal.solved / dailyGoal.target) * 100}%` }}
+                  animate={{ width: `${Math.min((dailyGoal.solved / (dailyGoal.target || 1)) * 100, 100)}%` }}
                   className="bg-gradient-to-r from-primary-500 to-indigo-500 h-full rounded-full" 
                 />
               </div>
@@ -646,14 +644,14 @@ export const Dashboard = () => {
                       strokeWidth="6"
                       strokeDasharray={176}
                       initial={{ strokeDashoffset: 176 }}
-                      animate={{ strokeDashoffset: 176 - (176 * 0.85) }}
+                      animate={{ strokeDashoffset: 176 - (176 * Math.min((dailyGoal.solved / (dailyGoal.target || 1)), 1)) }}
                     />
                   </svg>
-                  <span className="absolute text-xs font-bold text-white">85%</span>
+                  <span className="absolute text-xs font-bold text-white">{Math.round(Math.min((dailyGoal.solved / (dailyGoal.target || 1)) * 100, 100))}%</span>
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-white">Weekly Success Score</h4>
-                  <p className="text-[11px] text-dark-textMuted mt-0.5">You are doing better than 88% of developers in your bracket this week.</p>
+                  <p className="text-[11px] text-dark-textMuted mt-0.5">Keep up the consistency to maintain your progress.</p>
                 </div>
               </div>
             </CardContent>

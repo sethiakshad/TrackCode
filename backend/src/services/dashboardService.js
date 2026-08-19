@@ -35,14 +35,14 @@ const getDailyGoals = async (userId) => {
 };
 
 /**
- * Get weekly progress stats (aggregated by daily stats over last 7 days).
+ * Get continuous activity progress stats for any number of days.
  */
-const getWeeklyProgress = async (userId) => {
+const getActivityProgress = async (userId, daysCount = 7) => {
   const days = [];
   const now = new Date();
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  for (let i = 6; i >= 0; i--) {
+  for (let i = daysCount - 1; i >= 0; i--) {
     const d = new Date(now);
     d.setUTCDate(d.getUTCDate() - i);
     // Use UTC parts everywhere — the sync service stores dates as UTC midnight
@@ -50,66 +50,19 @@ const getWeeklyProgress = async (userId) => {
     const month = String(d.getUTCMonth() + 1).padStart(2, '0');
     const dayNum = String(d.getUTCDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${dayNum}`;
+    
+    // For large ranges, skip showing day name, just format short date
+    const name = daysCount <= 7 ? dayNames[d.getUTCDay()] : `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+    
     days.push({
       dateStr,
-      name: dayNames[d.getUTCDay()],
+      name,
       date: d,
     });
   }
 
-  // startDate = UTC midnight of 7 days ago
+  // startDate = UTC midnight of `daysCount` days ago
   const startDate = new Date(`${days[0].dateStr}T00:00:00.000Z`);
-
-  const stats = await prisma.daily_stats.findMany({
-    where: {
-      user_id: userId,
-      date: {
-        gte: startDate,
-      },
-    },
-  });
-
-  const statsMap = new Map();
-  stats.forEach((s) => {
-    const d = new Date(s.date);
-    const year = d.getUTCFullYear();
-    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const dayNum = String(d.getUTCDate()).padStart(2, '0');
-    const key = `${year}-${month}-${dayNum}`;
-    statsMap.set(key, s);
-  });
-
-  return days.map((day) => {
-    const record = statsMap.get(day.dateStr);
-    return {
-      name: day.name,
-      date: day.dateStr,
-      solved: record ? (record.problems_solved || 0) : 0,
-      commits: record ? (record.commits || 0) : 0,
-    };
-  });
-};
-
-const getMonthlyProgress = async (userId) => {
-  const days = [];
-  const now = new Date();
-
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const dayNum = String(d.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${dayNum}`;
-    days.push({
-      dateStr,
-      name: `${d.getMonth() + 1}/${d.getDate()}`,
-      date: d,
-    });
-  }
-
-  const startDate = new Date(days[0].dateStr);
-  startDate.setHours(0, 0, 0, 0);
 
   const stats = await prisma.daily_stats.findMany({
     where: {
@@ -235,8 +188,7 @@ const getUpcomingContests = async () => {
 module.exports = {
   getDashboardSummary,
   getDailyGoals,
-  getWeeklyProgress,
-  getMonthlyProgress,
+  getActivityProgress,
   getCodingStreak,
   getGithubSummary,
   getLeetcodeSummary,

@@ -8,8 +8,7 @@ router.use(authenticate);
 
 router.get('/summary', dashboardController.getDashboardSummary);
 router.get('/goals', dashboardController.getDailyGoals);
-router.get('/weekly-progress', dashboardController.getWeeklyProgress);
-router.get('/monthly-progress', dashboardController.getMonthlyProgress);
+router.get('/activity', dashboardController.getActivityProgress);
 router.get('/streak', dashboardController.getCodingStreak);
 router.get('/github', dashboardController.getGithubSummary);
 router.get('/leetcode', dashboardController.getLeetcodeSummary);

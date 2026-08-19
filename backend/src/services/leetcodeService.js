@@ -275,57 +275,8 @@ const syncLeetcodeData = async (userId, username) => {
         }
       }
 
-      // Refine recent stats using recentSubmissions for accurate unique problems solved
-      if (Array.isArray(activity.recentSubmissions)) {
-        const acceptedPerDate = {};
-
-        for (const sub of activity.recentSubmissions) {
-          if (sub.statusDisplay === 'Accepted' && sub.timestamp) {
-            const ts = parseInt(sub.timestamp, 10);
-            const d = new Date((ts > 1e12 ? ts : ts * 1000));
-            const dateStr = d.toISOString().split('T')[0];
-
-            if (!acceptedPerDate[dateStr]) {
-              acceptedPerDate[dateStr] = new Set();
-            }
-            acceptedPerDate[dateStr].add(sub.titleSlug);
-          }
-        }
-
-        for (const [dateStr, uniqueProblemsSet] of Object.entries(acceptedPerDate)) {
-          const exactCount = uniqueProblemsSet.size;
-          if (exactCount > 0) {
-            const existing = await prisma.daily_stats.findFirst({
-              where: { user_id: userId, date: new Date(dateStr) },
-            });
-            const finalCount = existing
-              ? Math.max(existing.problems_solved || 0, exactCount)
-              : exactCount;
-
-            calendarEntriesCount++;
-            await prisma.daily_stats.upsert({
-              where: {
-                user_id_date: {
-                  user_id: userId,
-                  date: new Date(dateStr),
-                },
-              },
-              update: {
-                problems_solved: finalCount,
-              },
-              create: {
-                user_id: userId,
-                date: new Date(dateStr),
-                problems_solved: finalCount,
-                commits: 0,
-                contests_played: 0,
-                xp_earned: finalCount * 10,
-                study_minutes: finalCount * 15,
-              },
-            });
-          }
-        }
-      }
+      // Refine recent stats block removed to ensure metric consistency.
+      // We only use the submissionCalendar (total submissions) for historical continuity.
     } catch (activityErr) {
       console.warn('[LEETCODE SYNC] Activity fetch failed (non-critical):', activityErr.message);
     }

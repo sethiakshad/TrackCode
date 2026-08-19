@@ -5,6 +5,8 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import { syncLeetCodeData } from '../../services/leetcodeService';
+
 export const Navbar = ({ onMenuClick }) => {
   const { user, logout } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -24,11 +26,17 @@ export const Navbar = ({ onMenuClick }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleSync = () => {
-    setIsSyncing(true);
-    setTimeout(() => {
+  const handleSync = async () => {
+    try {
+      setIsSyncing(true);
+      await syncLeetCodeData();
+      window.location.reload();
+    } catch (err) {
+      console.error('Sync failed:', err);
+      alert(err.message || 'Synchronization failed. Please try again.');
+    } finally {
       setIsSyncing(false);
-    }, 1500);
+    }
   };
 
   return (

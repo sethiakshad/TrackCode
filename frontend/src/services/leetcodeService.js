@@ -164,3 +164,11 @@ export async function getLeetCodeProfile(userId) {
 export async function disconnectLeetCode(userId) {
   await apiClient.delete('/settings/accounts/leetcode');
 }
+
+/**
+ * Trigger backend synchronization for connected LeetCode profile.
+ */
+export async function syncLeetCodeData() {
+  const response = await apiClient.post('/leetcode/sync');
+  return response.data?.data || response.data;
+}
