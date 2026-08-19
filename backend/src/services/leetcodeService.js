@@ -205,29 +205,37 @@ const syncLeetcodeData = async (userId, username) => {
         ...(preview.tagProblemCounts.fundamental || []),
       ];
 
-      for (const tag of allTags) {
-        await prisma.topic_mastery.upsert({
-          where: {
-            user_id_topic: {
-              user_id: userId,
-              topic: tag.tagName,
-            },
-          },
-          update: {
-            solved: tag.problemsSolved,
-            accuracy: 90.00,
-            mastery_score: tag.problemsSolved * 10,
-            updated_at: new Date(),
-          },
-          create: {
-            user_id: userId,
-            topic: tag.tagName,
-            solved: tag.problemsSolved,
-            accuracy: 90.00,
-            mastery_score: tag.problemsSolved * 10,
-            updated_at: new Date(),
-          },
-        });
+      const tagBatchSize = 15;
+      for (let i = 0; i < allTags.length; i += tagBatchSize) {
+        const chunk = allTags.slice(i, i + tagBatchSize);
+        await Promise.all(
+          chunk.map(async (tag) => {
+            // mastery_score in DB schema is NUMERIC(5, 2) (max 999.99)
+            const masteryScore = Math.min(Number(tag.problemsSolved || 0) * 10, 999.99);
+            await prisma.topic_mastery.upsert({
+              where: {
+                user_id_topic: {
+                  user_id: userId,
+                  topic: tag.tagName,
+                },
+              },
+              update: {
+                solved: tag.problemsSolved,
+                accuracy: 90.00,
+                mastery_score: masteryScore,
+                updated_at: new Date(),
+              },
+              create: {
+                user_id: userId,
+                topic: tag.tagName,
+                solved: tag.problemsSolved,
+                accuracy: 90.00,
+                mastery_score: masteryScore,
+                updated_at: new Date(),
+              },
+            });
+          })
+        );
       }
     }
 
@@ -242,41 +250,45 @@ const syncLeetcodeData = async (userId, username) => {
         try { calendar = JSON.parse(calendar); } catch (e) { calendar = {}; }
       }
       if (typeof calendar === 'object' && calendar !== null) {
-        for (const [timestampStr, count] of Object.entries(calendar)) {
-          const ts = parseInt(timestampStr, 10);
-          if (!isNaN(ts)) {
-            const d = new Date(ts * 1000);
-            const dateStr = d.toISOString().split('T')[0];
-            const numCount = parseInt(count, 10) || 0;
-            if (numCount > 0) {
-              calendarEntriesCount++;
-              await prisma.daily_stats.upsert({
-                where: {
-                  user_id_date: {
-                    user_id: userId,
-                    date: new Date(dateStr),
-                  },
-                },
-                update: {
-                  problems_solved: numCount,
-                },
-                create: {
-                  user_id: userId,
-                  date: new Date(dateStr),
-                  problems_solved: numCount,
-                  commits: 0,
-                  contests_played: 0,
-                  xp_earned: numCount * 10,
-                  study_minutes: numCount * 15,
-                },
-              });
-            }
-          }
+        const entries = Object.entries(calendar);
+        const batchSize = 15;
+        for (let i = 0; i < entries.length; i += batchSize) {
+          const chunk = entries.slice(i, i + batchSize);
+          await Promise.all(
+            chunk.map(async ([timestampStr, count]) => {
+              const ts = parseInt(timestampStr, 10);
+              if (!isNaN(ts)) {
+                const d = new Date(ts * 1000);
+                const dateStr = d.toISOString().split('T')[0];
+                const numCount = parseInt(count, 10) || 0;
+                if (numCount > 0) {
+                  calendarEntriesCount++;
+                  await prisma.daily_stats.upsert({
+                    where: {
+                      user_id_date: {
+                        user_id: userId,
+                        date: new Date(dateStr),
+                      },
+                    },
+                    update: {
+                      problems_solved: numCount,
+                    },
+                    create: {
+                      user_id: userId,
+                      date: new Date(dateStr),
+                      problems_solved: numCount,
+                      commits: 0,
+                      contests_played: 0,
+                      xp_earned: numCount * 10,
+                      study_minutes: numCount * 15,
+                    },
+                  });
+                }
+              }
+            })
+          );
         }
       }
-
-      // Refine recent stats block removed to ensure metric consistency.
-      // We only use the submissionCalendar (total submissions) for historical continuity.
     } catch (activityErr) {
       console.warn('[LEETCODE SYNC] Activity fetch failed (non-critical):', activityErr.message);
     }
