@@ -70,6 +70,10 @@ const fetchLeetCodePreview = async (username) => {
             difficulty
             count
           }
+          totalSubmissionNum {
+            difficulty
+            count
+          }
         }
         tagProblemCounts {
           advanced { tagName tagSlug problemsSolved }
@@ -109,6 +113,7 @@ const fetchLeetCodePreview = async (username) => {
 
   const user = result.data.matchedUser;
   const stats = user.submitStats?.acSubmissionNum || [];
+  const totalStats = user.submitStats?.totalSubmissionNum || [];
   const contestRanking = result.data.userContestRanking;
   const profile = user.profile || {};
 
@@ -116,6 +121,10 @@ const fetchLeetCodePreview = async (username) => {
   const easySolved = stats.find(s => s.difficulty === 'Easy')?.count || 0;
   const mediumSolved = stats.find(s => s.difficulty === 'Medium')?.count || 0;
   const hardSolved = stats.find(s => s.difficulty === 'Hard')?.count || 0;
+
+  const totalSubmissions = totalStats.find(s => s.difficulty === 'All')?.count || 0;
+  const acSubmissions = stats.find(s => s.difficulty === 'All')?.count || 0;
+  const acceptanceRate = totalSubmissions > 0 ? (acSubmissions / totalSubmissions) * 100 : 0;
 
   return {
     username: user.username,
@@ -133,7 +142,9 @@ const fetchLeetCodePreview = async (username) => {
     school: profile.school || '',
     website: profile.websites || [],
     reputation: profile.reputation || 0,
-    acceptance_rate: null,
+    total_submissions: totalSubmissions,
+    ac_submissions: acSubmissions,
+    acceptance_rate: acceptanceRate,
     tagProblemCounts: user.tagProblemCounts || null,
   };
 };
@@ -171,6 +182,64 @@ const syncLeetcodeData = async (userId, username) => {
     // 1. Fetch profile + solved stats + contest rating
     const preview = await fetchLeetCodePreview(username);
 
+    // Calculate streaks from submissionCalendar
+    let currentStreak = 0;
+    let longestStreak = 0;
+    
+    try {
+      const activity = await fetchLeetCodeActivity(username);
+      let calendar = activity.submissionCalendar;
+      if (typeof calendar === 'string') {
+        try { calendar = JSON.parse(calendar); } catch (e) { calendar = {}; }
+      }
+      
+      if (typeof calendar === 'object' && calendar !== null) {
+        const timestamps = Object.keys(calendar)
+          .map(ts => parseInt(ts, 10))
+          .filter(ts => !isNaN(ts) && calendar[ts] > 0)
+          .sort((a, b) => a - b);
+          
+        if (timestamps.length > 0) {
+          let tempStreak = 1;
+          longestStreak = 1;
+          
+          for (let i = 1; i < timestamps.length; i++) {
+            const prevDate = new Date(timestamps[i-1] * 1000);
+            prevDate.setHours(0, 0, 0, 0);
+            const currDate = new Date(timestamps[i] * 1000);
+            currDate.setHours(0, 0, 0, 0);
+            
+            const diffDays = Math.round((currDate - prevDate) / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 1) {
+              tempStreak++;
+              longestStreak = Math.max(longestStreak, tempStreak);
+            } else if (diffDays > 1) {
+              tempStreak = 1;
+            }
+          }
+          
+          // Check if current streak is still active (today or yesterday)
+          const lastActiveDate = new Date(timestamps[timestamps.length - 1] * 1000);
+          lastActiveDate.setHours(0, 0, 0, 0);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const diffFromToday = Math.round((today - lastActiveDate) / (1000 * 60 * 60 * 24));
+          
+          if (diffFromToday <= 1) {
+            currentStreak = tempStreak;
+          } else {
+            currentStreak = 0;
+          }
+        }
+      }
+      
+      // Store activity for step 4
+      preview.activity = activity;
+    } catch (e) {
+      console.warn('[LEETCODE SYNC] Failed to calculate streak:', e.message);
+    }
+
     // 2. Upsert LeetCode profile in DB
     const profile = await prisma.leetcode_profiles.upsert({
       where: { user_id: userId },
@@ -205,35 +274,41 @@ const syncLeetcodeData = async (userId, username) => {
         ...(preview.tagProblemCounts.fundamental || []),
       ];
 
-      const tagBatchSize = 15;
+      // Process all tags in batches of 10 to avoid overwhelming the API
+      const tagBatchSize = 10;
       for (let i = 0; i < allTags.length; i += tagBatchSize) {
         const chunk = allTags.slice(i, i + tagBatchSize);
         await Promise.all(
           chunk.map(async (tag) => {
+            const solved = Number(tag.problemsSolved) || 0;
             // mastery_score in DB schema is NUMERIC(5, 2) (max 999.99)
-            const masteryScore = Math.min(Number(tag.problemsSolved || 0) * 10, 999.99);
-            await prisma.topic_mastery.upsert({
-              where: {
-                user_id_topic: {
+            const masteryScore = Math.min(solved * 10, 999.99);
+            try {
+              await prisma.topic_mastery.upsert({
+                where: {
+                  user_id_topic: {
+                    user_id: userId,
+                    topic: tag.tagName,
+                  },
+                },
+                update: {
+                  solved: solved,
+                  accuracy: 90.00,
+                  mastery_score: masteryScore,
+                  updated_at: new Date(),
+                },
+                create: {
                   user_id: userId,
                   topic: tag.tagName,
+                  solved: solved,
+                  accuracy: 90.00,
+                  mastery_score: masteryScore,
+                  updated_at: new Date(),
                 },
-              },
-              update: {
-                solved: tag.problemsSolved,
-                accuracy: 90.00,
-                mastery_score: masteryScore,
-                updated_at: new Date(),
-              },
-              create: {
-                user_id: userId,
-                topic: tag.tagName,
-                solved: tag.problemsSolved,
-                accuracy: 90.00,
-                mastery_score: masteryScore,
-                updated_at: new Date(),
-              },
-            });
+              });
+            } catch (tagErr) {
+              console.warn(`[LEETCODE SYNC] Failed to upsert topic "${tag.tagName}":`, tagErr.message);
+            }
           })
         );
       }
@@ -242,7 +317,7 @@ const syncLeetcodeData = async (userId, username) => {
     // 4. Fetch activity data (submission calendar + recent submissions)
     let calendarEntriesCount = 0;
     try {
-      const activity = await fetchLeetCodeActivity(username);
+      const activity = preview.activity || await fetchLeetCodeActivity(username);
 
       // Parse submissionCalendar and upsert into daily_stats
       let calendar = activity.submissionCalendar;
@@ -326,14 +401,14 @@ const syncLeetcodeData = async (userId, username) => {
       update: {
         total_solved: preview.problems_solved,
         contest_rating: preview.contest_rating || 0,
-        streak: 1,
+        streak: currentStreak,
         updated_at: new Date(),
       },
       create: {
         user_id: userId,
         total_solved: preview.problems_solved,
         contest_rating: preview.contest_rating || 0,
-        streak: 1,
+        streak: currentStreak,
         updated_at: new Date(),
       },
     });

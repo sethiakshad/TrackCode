@@ -17,6 +17,7 @@ router.get('/custom', analyticsController.getCustomStatistics);
 router.get('/radar', analyticsController.getRadarChartData);
 router.get('/progress', analyticsController.getProgressGraph);
 router.get('/contest-performance', analyticsController.getContestPerformance);
+router.get('/summary', analyticsController.getAnalyticsSummary);
 
 
 module.exports = router;

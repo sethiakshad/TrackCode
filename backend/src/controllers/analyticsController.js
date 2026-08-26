@@ -94,10 +94,20 @@ const getContestPerformance = async (req, res, next) => {
   }
 };
 
+const getAnalyticsSummary = async (req, res, next) => {
+  try {
+    const data = await analyticsService.getAnalyticsSummary(req.userId);
+    res.json({ status: 'success', data });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getTopicMastery,
   getDifficultyDistribution,
   getAcceptanceRate,
+  getAnalyticsSummary,
   getHeatmapData,
   getWeeklyStatistics,
   getMonthlyStatistics,

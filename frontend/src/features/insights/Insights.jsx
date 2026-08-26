@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 import { Shimmer } from '../../components/ui/Shimmer';
 import { Button } from '../../components/ui/Button';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
-import { ArrowUpRight, Award, Zap, CheckCircle2, TrendingUp, Calendar, Filter } from 'lucide-react';
+import { ArrowUpRight, Award, Zap, CheckCircle2, TrendingUp, Calendar, Filter, RefreshCw, Flame } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { getTopicMastery, getDifficultyDistribution, getAnalyticsOverview } from '../../lib/api/analyticsApi';
+import apiClient from '../../lib/axios';
 
 const COLORS = ['#10b981', '#f59e0b', '#ef4444'];
 
@@ -17,32 +18,53 @@ export const Analytics = () => {
   
   const [masteryData, setMasteryData] = useState([]);
   const [difficultyData, setDifficultyData] = useState([]);
-  const [overview, setOverview] = useState({ acceptanceRate: 0, contestsEntered: 0, totalSolved: 0 });
+  const [overview, setOverview] = useState({ acceptanceRate: 0, contestsEntered: 0, totalSolved: 0, streak: 0, longestStreak: 0 });
+  const [syncing, setSyncing] = useState(false);
+
+  const loadData = async () => {
+    if (!user?.id) return;
+    try {
+      setLoading(true);
+      const [mastery, difficulty, overviewStats] = await Promise.all([
+        getTopicMastery(user.id),
+        getDifficultyDistribution(user.id),
+        getAnalyticsOverview(user.id)
+      ]);
+      
+      setMasteryData(mastery.length ? mastery : []);
+      setDifficultyData(difficulty.length ? difficulty : []);
+      
+      // Also get dashboard summary for streaks
+      const dashRes = await apiClient.get('/dashboard/summary').catch(() => null);
+      const dashData = dashRes?.data?.data || dashRes?.data || {};
+      
+      setOverview({
+        ...overviewStats,
+        streak: dashData.streak || 0,
+        longestStreak: dashData.longest_streak || dashData.streak || 0, // Fallback if longest_streak doesn't exist
+      });
+    } catch (err) {
+      console.error("Failed to load analytics:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!user?.id) return;
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        const [mastery, difficulty, overviewStats] = await Promise.all([
-          getTopicMastery(user.id),
-          getDifficultyDistribution(user.id),
-          getAnalyticsOverview(user.id)
-        ]);
-        
-        setMasteryData(mastery.length ? mastery : []);
-        
-        setDifficultyData(difficulty.length ? difficulty : []);
-        
-        setOverview(overviewStats);
-      } catch (err) {
-        console.error("Failed to load analytics:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadData();
-  }, [user?.id]);
+  }, [user?.id, timeRange]);
+
+  const handleSync = async () => {
+    try {
+      setSyncing(true);
+      await apiClient.post('/leetcode/sync');
+      await loadData();
+    } catch (err) {
+      console.error('Failed to sync LeetCode data:', err);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -55,10 +77,26 @@ export const Analytics = () => {
           <p className="text-dark-textMuted text-sm mt-1">Deep dive into algorithm mastery, speed metrics, and platform performance.</p>
         </div>
         <div className="flex items-center space-x-2 shrink-0">
-          <Button variant="outline" size="sm" className="h-10">
-            <Filter className="h-4 w-4 mr-2" />
-            Time range: {timeRange === 'monthly' ? 'This Month' : 'This Year'}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="h-10 bg-indigo-500/10 text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/20 hover:text-indigo-300"
+            onClick={handleSync}
+            disabled={syncing}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync Now'}
           </Button>
+          <select 
+            className="h-10 px-3 rounded-md border border-white/10 bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value)}
+          >
+            <option value="weekly">This Week</option>
+            <option value="monthly">This Month</option>
+            <option value="yearly">This Year</option>
+            <option value="all">All Time</option>
+          </select>
         </div>
       </div>
 
@@ -96,6 +134,39 @@ export const Analytics = () => {
             </div>
             <div className="h-10 w-10 rounded-lg bg-primary-500/10 flex items-center justify-center text-primary-400 border border-primary-500/20">
               <Award className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* Streaks & Consistency */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card className="border-white/5 bg-gradient-to-br from-orange-500/10 to-red-500/5 backdrop-blur-xl">
+          <CardContent className="p-6 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs text-orange-200/70 font-medium uppercase tracking-wider">Current Streak</span>
+              <div className="flex items-end gap-2">
+                <h3 className="text-3xl font-extrabold text-orange-400">{overview.streak}</h3>
+                <span className="text-sm text-orange-200/50 mb-1">days</span>
+              </div>
+            </div>
+            <div className="h-12 w-12 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400 shadow-[0_0_15px_rgba(249,115,22,0.3)]">
+              <Flame className="h-6 w-6" />
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-white/5 bg-gradient-to-br from-indigo-500/10 to-blue-500/5 backdrop-blur-xl">
+          <CardContent className="p-6 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs text-indigo-200/70 font-medium uppercase tracking-wider">Longest Streak</span>
+              <div className="flex items-end gap-2">
+                <h3 className="text-3xl font-extrabold text-indigo-400">{overview.longestStreak}</h3>
+                <span className="text-sm text-indigo-200/50 mb-1">days</span>
+              </div>
+            </div>
+            <div className="h-12 w-12 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.3)]">
+              <Calendar className="h-6 w-6" />
             </div>
           </CardContent>
         </Card>
