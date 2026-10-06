@@ -117,7 +117,7 @@ async function fetchContributionsData(username) {
   try {
     const res = await fetchWithTimeout(
       `https://github-contributions-api.deno.dev/${encodeURIComponent(username)}.json`,
-      15000
+      30000
     );
     
     if (res.ok) {

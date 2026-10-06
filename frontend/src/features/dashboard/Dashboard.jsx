@@ -524,10 +524,24 @@ export const Dashboard = () => {
                       <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
                       <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
                       <Tooltip 
-                        contentStyle={{ backgroundColor: 'rgba(15,23,42,0.95)', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.5)' }}
-                        itemStyle={{ color: '#fff' }}
+                        content={({ active, payload, label }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="custom-tooltip bg-slate-900/95 border border-white/10 p-3 rounded-xl shadow-xl">
+                                <p className="label font-bold text-white mb-2">{label}</p>
+                                {/* <p className="text-[#6366f1] text-xs font-medium">no of question: {data.solved || 0}</p> */}
+                                <p className="text-cyan-400 text-xs font-medium mt-1">no of submissions: {data.solved || 0}</p>
+                                {isConnectedGitHub && (
+                                  <p className="text-[#10b981] text-xs font-medium mt-1">no of commits: {data.commits || 0}</p>
+                                )}
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
                       />
-                      <Area type="monotone" dataKey="solved" stroke="#6366f1" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSolved)" name="Activity" />
+                      <Area type="monotone" dataKey="solved" stroke="#6366f1" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSolved)" name="no of question" />
                       {isConnectedGitHub && (
                         <Area type="monotone" dataKey="commits" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorCommits)" name="GitHub Commits" />
                       )}

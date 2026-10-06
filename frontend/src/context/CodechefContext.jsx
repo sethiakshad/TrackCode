@@ -30,6 +30,17 @@ export const CodechefProvider = ({ children }) => {
       try {
         const data = await getCodechefProfile(user.id);
         setProfile(data || null);
+
+        if (data?.username) {
+          fetchCodechefProfile(data.username).then(async (freshData) => {
+            if (user) {
+              await saveCodechefProfile(user.id, freshData);
+            }
+            setProfile(freshData);
+          }).catch((err) => {
+            console.warn('Background Codechef sync failed:', err);
+          });
+        }
       } catch (err) {
         console.error('Failed to load Codechef profile:', err);
       } finally {

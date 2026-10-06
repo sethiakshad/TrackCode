@@ -30,6 +30,17 @@ export const GitHubProvider = ({ children }) => {
       try {
         const data = await getGitHubProfile(user.id);
         setProfile(data || null);
+
+        if (data?.username) {
+          fetchGitHubProfile(data.username).then(async (freshData) => {
+            if (user) {
+              await saveGitHubProfile(user.id, freshData);
+            }
+            setProfile(freshData);
+          }).catch((err) => {
+            console.warn('Background GitHub sync failed:', err);
+          });
+        }
       } catch (err) {
         console.error('Failed to load GitHub profile:', err);
       } finally {

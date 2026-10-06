@@ -30,6 +30,17 @@ export const CodeforcesProvider = ({ children }) => {
       try {
         const data = await getCodeforcesProfile(user.id);
         setProfile(data || null);
+
+        if (data?.username) {
+          fetchCodeforcesProfile(data.username).then(async (freshData) => {
+            if (user) {
+              await saveCodeforcesProfile(user.id, freshData);
+            }
+            setProfile(freshData);
+          }).catch((err) => {
+            console.warn('Background Codeforces sync failed:', err);
+          });
+        }
       } catch (err) {
         console.error('Failed to load Codeforces profile:', err);
       } finally {

@@ -31,6 +31,17 @@ export const LeetCodeProvider = ({ children }) => {
       try {
         const data = await getLeetCodeProfile(user.id);
         setProfile(data || null);
+
+        if (data?.username) {
+          fetchLeetCodeProfile(data.username).then(async (freshData) => {
+            if (user) {
+              await saveLeetCodeProfile(user.id, freshData);
+            }
+            setProfile(freshData);
+          }).catch((err) => {
+            console.warn('Background LeetCode sync failed:', err);
+          });
+        }
       } catch (err) {
         console.error('Failed to load LeetCode profile:', err);
       } finally {

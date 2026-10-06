@@ -16,7 +16,7 @@ export async function fetchCodechefProfile(username) {
   
   try {
     const res = await fetch(`https://codechef-api.sudeep.dev/${trimmed}`, {
-      signal: AbortSignal.timeout(10000)
+      signal: AbortSignal.timeout(30000)
     });
     
     if (!res.ok) {
