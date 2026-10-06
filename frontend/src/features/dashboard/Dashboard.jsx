@@ -552,8 +552,7 @@ export const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Quick Actions & Heatmap Preview Grid */}
-          <div className="grid gap-6 sm:grid-cols-2">
+          <div className="grid gap-6 sm:grid-cols-1">
             {/* Quick Actions */}
             <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl">
               <CardHeader>
@@ -577,40 +576,6 @@ export const Dashboard = () => {
                   <Calendar className="h-4 w-4 text-orange-400" />
                   <span>Custom Schedule</span>
                 </Button>
-              </CardContent>
-            </Card>
-
-            {/* Heatmap Preview Widget */}
-            <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-md">Activity Heatmap</CardTitle>
-                <CardDescription>Visual preview of streak intensity</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-7 gap-1.5 pt-2">
-                  {heatmapDays.map((d) => (
-                    <div
-                      key={d.day}
-                      title={`Day ${d.day}: ${d.level} submissions`}
-                      className={`aspect-square w-full rounded-sm transition-all hover:scale-110 ${
-                        d.level === 0 ? 'bg-slate-800' :
-                        d.level < 3 ? 'bg-indigo-900/50 border border-indigo-500/20' :
-                        d.level < 6 ? 'bg-indigo-600' :
-                        'bg-indigo-400'
-                      }`}
-                    />
-                  ))}
-                </div>
-                <div className="flex justify-between items-center text-[10px] text-dark-textMuted mt-4">
-                  <span>Less active</span>
-                  <div className="flex items-center space-x-1">
-                    <span className="w-2.5 h-2.5 bg-slate-800 rounded-sm" />
-                    <span className="w-2.5 h-2.5 bg-indigo-900/50 rounded-sm" />
-                    <span className="w-2.5 h-2.5 bg-indigo-600 rounded-sm" />
-                    <span className="w-2.5 h-2.5 bg-indigo-400 rounded-sm" />
-                  </div>
-                  <span>More active</span>
-                </div>
               </CardContent>
             </Card>
           </div>
