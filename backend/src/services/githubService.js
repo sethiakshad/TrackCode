@@ -182,10 +182,97 @@ const getGitHubProfile = async (userId) => {
 
   if (!profile) return null;
 
+  // 1. Calculate language breakdown
+  const langCount = {};
+  let totalRepos = 0;
+  profile.repositories.forEach(repo => {
+    if (repo.language) {
+      langCount[repo.language] = (langCount[repo.language] || 0) + 1;
+      totalRepos++;
+    }
+  });
+
+  const languageColors = {
+    'JavaScript': '#f7df1e',
+    'TypeScript': '#3178c6',
+    'Python': '#3572A5',
+    'Java': '#b07219',
+    'C++': '#f34b7d',
+    'HTML': '#e34c26',
+    'CSS': '#563d7c',
+    'C#': '#178600',
+    'Go': '#00ADD8'
+  };
+
+  const languages = Object.keys(langCount).map(lang => ({
+    name: lang,
+    value: Math.round((langCount[lang] / totalRepos) * 100),
+    color: languageColors[lang] || '#' + Math.floor(Math.random()*16777215).toString(16)
+  })).sort((a, b) => b.value - a.value);
+
+  // 2. Fetch commit history from daily_stats
+  const today = new Date();
+  const oneYearAgo = new Date();
+  oneYearAgo.setDate(today.getDate() - 364); // 52 weeks * 7 days = 364 days
+
+  const dailyStats = await prisma.daily_stats.findMany({
+    where: {
+      user_id: userId,
+      date: { gte: oneYearAgo }
+    },
+    select: { date: true, commits: true }
+  });
+
+  const commitMap = new Map();
+  dailyStats.forEach(stat => {
+    const dStr = stat.date.toISOString().split('T')[0];
+    commitMap.set(dStr, stat.commits);
+  });
+
+  // Build 52-week calendar array (last 364 days, ending on today)
+  const calendar = [];
+  let currentDate = new Date(oneYearAgo);
+  
+  for (let w = 0; w < 52; w++) {
+    const week = [];
+    for (let d = 0; d < 7; d++) {
+      const dStr = currentDate.toISOString().split('T')[0];
+      const commits = commitMap.get(dStr) || 0;
+      
+      let level = 0;
+      if (commits > 10) level = 3;
+      else if (commits > 4) level = 2;
+      else if (commits > 0) level = 1;
+      
+      week.push({ level, commits, date: dStr });
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    calendar.push(week);
+  }
+
+  // 3. Weekly commit history for the bar chart (last 4 weeks)
+  const commitHistory = [];
+  const fourWeeksAgo = new Date();
+  fourWeeksAgo.setDate(today.getDate() - 28);
+  let tempDate = new Date(fourWeeksAgo);
+
+  for (let i = 1; i <= 4; i++) {
+    let weeklyCommits = 0;
+    for (let j = 0; j < 7; j++) {
+      const dStr = tempDate.toISOString().split('T')[0];
+      weeklyCommits += commitMap.get(dStr) || 0;
+      tempDate.setDate(tempDate.getDate() + 1);
+    }
+    commitHistory.push({ week: `W${i}`, commits: weeklyCommits });
+  }
+
   // Convert BigInt id to String for JSON serialization
   return {
     ...profile,
     github_id: profile.github_id.toString(),
+    languages,
+    calendar,
+    commitHistory
   };
 };
 

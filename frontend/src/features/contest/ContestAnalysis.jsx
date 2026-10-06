@@ -28,7 +28,7 @@ export const ContestAnalysis = () => {
         ]);
         
         setHistory(hist);
-        setRatingGraph(graph);
+        setRatingGraph(Array.isArray(graph) ? graph : graph?.ratingTrend || []);
         setPredictions(preds);
       } catch (err) {
         console.error("Failed to load contest data:", err);
@@ -175,21 +175,23 @@ export const ContestAnalysis = () => {
           {history.length === 0 ? (
             <p className="text-xs text-dark-textMuted">No recent contests found.</p>
           ) : (
-            history.map((c) => (
+            history.map((c) => {
+              const ratingChange = (c.new_rating !== null && c.old_rating !== null) ? (c.new_rating - c.old_rating) : null;
+              return (
               <div key={c.id} className="flex items-center justify-between bg-slate-950/40 p-3.5 rounded-lg border border-white/5">
                 <div className="space-y-0.5">
-                  <p className="text-xs font-semibold text-white">{c.name} <span className="text-[10px] text-dark-textMuted font-normal ml-2">({c.platform})</span></p>
+                  <p className="text-xs font-semibold text-white">{c.contests?.name || 'Unknown Contest'} <span className="text-[10px] text-dark-textMuted font-normal ml-2">({c.contests?.platform || 'Unknown'})</span></p>
                   <p className="text-[10px] text-dark-textMuted">
                     {new Date(c.date).toLocaleDateString()} • Rank: {c.rank ? `#${c.rank.toLocaleString()}` : 'N/A'} • Solved: {c.solved}
                   </p>
                 </div>
-                {c.ratingChange !== null && (
-                  <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${c.ratingChange > 0 ? 'text-emerald-400 bg-emerald-950/30' : 'text-red-400 bg-red-950/30'}`}>
-                    {c.ratingChange > 0 ? '+' : ''}{c.ratingChange} Rating
+                {ratingChange !== null && (
+                  <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${ratingChange > 0 ? 'text-emerald-400 bg-emerald-950/30' : 'text-red-400 bg-red-950/30'}`}>
+                    {ratingChange > 0 ? '+' : ''}{ratingChange} Rating
                   </span>
                 )}
               </div>
-            ))
+            )})
           )}
         </CardContent>
       </Card>
