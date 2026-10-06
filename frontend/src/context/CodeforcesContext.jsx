@@ -28,21 +28,12 @@ export const CodeforcesProvider = ({ children }) => {
       setIsLoading(true);
       setError(null);
       try {
+        // Load from DB only — fast and reliable, no live CF API call
         const data = await getCodeforcesProfile(user.id);
         setProfile(data || null);
-
-        if (data?.username) {
-          fetchCodeforcesProfile(data.username).then(async (freshData) => {
-            if (user) {
-              await saveCodeforcesProfile(user.id, freshData);
-            }
-            setProfile(freshData);
-          }).catch((err) => {
-            console.warn('Background Codeforces sync failed:', err);
-          });
-        }
       } catch (err) {
         console.error('Failed to load Codeforces profile:', err);
+        setProfile(null);
       } finally {
         setIsLoading(false);
       }
@@ -61,6 +52,7 @@ export const CodeforcesProvider = ({ children }) => {
         await saveCodeforcesProfile(user.id, profileData);
       } catch (err) {
         console.warn('Backend write failed:', err.message);
+        throw new Error('Failed to save profile to database. Please try again.');
       }
     }
 

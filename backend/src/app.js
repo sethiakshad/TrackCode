@@ -15,6 +15,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const goalRoutes = require('./routes/goalRoutes');
 const bookmarkRoutes = require('./routes/bookmarkRoutes');
 const aiRoutes = require('./routes/aiRoutes');
+const codeforcesRoutes = require('./routes/codeforcesRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 
 const app = express();
@@ -47,6 +48,7 @@ app.use('/api/v1/goals', goalRoutes);
 app.use('/api/v1/bookmarks', bookmarkRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/settings', settingsRoutes);
+app.use('/api/v1/codeforces', codeforcesRoutes);
 
 // Global Error Handler
 app.use(errorHandler);

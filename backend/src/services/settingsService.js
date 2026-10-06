@@ -154,26 +154,38 @@ const connectAccount = async (userId, platform, profileData) => {
       where: { user_id: userId },
       update: {
         username: profileData.username,
-        rating: profileData.rating,
+        contest_rating: profileData.rating,
         max_rating: profileData.max_rating,
-        rank: profileData.rank,
-        max_rank: profileData.max_rank,
+        ranking: profileData.rating, // Codeforces 'rank' is a string ("newbie"), schema 'ranking' is Int. Let's store rating or 0. Wait, schema has ranking Int.
         problems_solved: profileData.problems_solved,
         synced_at: new Date(),
       },
       create: {
         user_id: userId,
         username: profileData.username,
-        rating: profileData.rating || 0,
+        contest_rating: profileData.rating || 0,
         max_rating: profileData.max_rating || 0,
-        rank: profileData.rank || 'Unrated',
-        max_rank: profileData.max_rank || 'Unrated',
+        ranking: profileData.rating || 0,
         problems_solved: profileData.problems_solved || 0,
         synced_at: new Date(),
       }
     });
 
     await syncCodeforcesSubmissions(userId, profileData.username);
+
+    // Store CF contests_attended in dashboard_summary weekly_progress
+    const cfContests = parseInt(profileData.contests_attended, 10) || 0;
+    if (cfContests > 0) {
+      const existing = await prisma.dashboard_summary.findUnique({ where: { user_id: userId } });
+      const existingProgress = (existing?.weekly_progress && typeof existing.weekly_progress === 'object')
+        ? existing.weekly_progress : {};
+      await prisma.dashboard_summary.upsert({
+        where: { user_id: userId },
+        update: { weekly_progress: { ...existingProgress, cf_contests_attended: cfContests }, updated_at: new Date() },
+        create: { user_id: userId, weekly_progress: { cf_contests_attended: cfContests }, streak: 0, updated_at: new Date() },
+      });
+    }
+
     return profile;
   } else if (platform === 'codechef') {
     const count = parseInt(profileData.problems_solved, 10) || 0;

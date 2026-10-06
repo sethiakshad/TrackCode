@@ -63,6 +63,20 @@ export async function fetchCodeforcesProfile(username) {
     console.warn('Failed to fetch CF status for problem count', err);
   }
 
+  // Fetch contest count from user.rating
+  let contestsAttended = 0;
+  try {
+    const ratingRes = await fetch(`${CF_API_BASE}/user.rating?handle=${trimmed}`);
+    if (ratingRes.ok) {
+      const ratingData = await ratingRes.json();
+      if (ratingData.status === 'OK' && Array.isArray(ratingData.result)) {
+        contestsAttended = ratingData.result.length;
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to fetch CF contest history', err);
+  }
+
   return {
     username: profile.handle,
     rating: profile.rating || 0,
@@ -70,6 +84,7 @@ export async function fetchCodeforcesProfile(username) {
     rank: profile.rank || 'Unrated',
     max_rank: profile.maxRank || 'Unrated',
     problems_solved: problemsSolved,
+    contests_attended: contestsAttended,
     contribution: profile.contribution || 0,
     avatar: profile.titlePhoto || profile.avatar || null,
     organization: profile.organization || '',
@@ -88,23 +103,27 @@ export async function saveCodeforcesProfile(userId, profileData) {
 }
 
 /**
- * Fetch the stored Codeforces profile from Supabase.
+ * Fetch the stored Codeforces profile from the database.
+ * Mirrors getLeetCodeProfile — reads from DB only, never throws.
  */
 export async function getCodeforcesProfile(userId) {
-  // We can just rely on the settings endpoint for status, but if we need the full profile data, 
-  // the frontend fetches from CF API directly after loading the username from settings.
-  // We'll return null to force re-fetch if we don't have a dedicated GET endpoint for CF profile yet,
-  // Or actually, wait. Let's just fetch it via settings api.
-  const response = await apiClient.get('/settings');
-  const cf = response.data?.connectedAccounts?.codeforces;
-  if (!cf || !cf.username) return null;
-  
-  // Fetch full data from Codeforces API so context is fully populated on load
   try {
-    return await fetchCodeforcesProfile(cf.username);
-  } catch (err) {
-    console.error('Failed to fetch full CF profile on load:', err);
-    return { username: cf.username }; // Fallback
+    const response = await apiClient.get('/codeforces/profile');
+    // Axios interceptor returns response.data, so response = { status, data: {...} }
+    const data = response?.data || response || null;
+    if (!data || !data.username) return null;
+    return {
+      username: data.username,
+      rating: data.contest_rating || data.rating || 0,
+      max_rating: data.max_rating || 0,
+      rank: data.rank || 'Unrated',
+      max_rank: data.max_rank || 'Unrated',
+      problems_solved: data.problems_solved || 0,
+    };
+  } catch (error) {
+    // Always return null — never throw so context doesn't break on load
+    console.warn('getCodeforcesProfile failed (returning null):', error?.response?.status || error?.message);
+    return null;
   }
 }
 

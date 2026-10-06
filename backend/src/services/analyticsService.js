@@ -124,8 +124,9 @@ const getAcceptanceRate = async (userId) => {
  * Pulls from leetcode_profiles and dashboard_summary.
  */
 const getAnalyticsSummary = async (userId) => {
-  const [lcProfile, dashboard] = await Promise.all([
+  const [lcProfile, cfProfile, dashboard] = await Promise.all([
     prisma.leetcode_profiles.findUnique({ where: { user_id: userId } }),
+    prisma.codeforces_profiles.findUnique({ where: { user_id: userId } }),
     prisma.dashboard_summary.findUnique({ where: { user_id: userId } }),
   ]);
 
@@ -188,11 +189,25 @@ const getAnalyticsSummary = async (userId) => {
     }
   }
 
-  // Contest count from contest_history
-  const contestCount = await prisma.contest_history.count({ where: { user_id: userId } });
+  // Contest count: LC contests (from weekly_progress) + CF contests (from weekly_progress)
+  const dashProgress = (dashboard?.weekly_progress && typeof dashboard.weekly_progress === 'object')
+    ? dashboard.weekly_progress : {};
+  const lcContests = dashProgress.contests_attended || 0;
+  const cfContests = dashProgress.cf_contests_attended || 0;
+  const contestCount = lcContests + cfContests 
+    || await prisma.contest_history.count({ where: { user_id: userId } });
+  
+  // Longest streak: stored in weekly_progress during sync for accuracy
+  if (!longestStreak && dashProgress.longest_streak) {
+    longestStreak = dashProgress.longest_streak;
+  }
+
+  const lcSolved = lcProfile?.problems_solved || 0;
+  const cfSolved = cfProfile?.problems_solved || 0;
+  const totalSolved = lcSolved + cfSolved;
 
   return {
-    totalSolved: lcProfile?.problems_solved || 0,
+    totalSolved,
     easy: lcProfile?.easy || 0,
     medium: lcProfile?.medium || 0,
     hard: lcProfile?.hard || 0,

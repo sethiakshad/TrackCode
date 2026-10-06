@@ -395,13 +395,18 @@ const syncLeetcodeData = async (userId, username) => {
       });
     }
 
-    // 5. Update dashboard summary
+    // 5. Update dashboard summary (store contests_attended in weekly_progress JSON)
+    const existingSummary = await prisma.dashboard_summary.findUnique({ where: { user_id: userId } });
+    const existingProgress = (existingSummary?.weekly_progress && typeof existingSummary.weekly_progress === 'object')
+      ? existingSummary.weekly_progress : {};
+
     await prisma.dashboard_summary.upsert({
       where: { user_id: userId },
       update: {
         total_solved: preview.problems_solved,
         contest_rating: preview.contest_rating || 0,
         streak: currentStreak,
+        weekly_progress: { ...existingProgress, contests_attended: preview.contests_attended || 0, longest_streak: longestStreak },
         updated_at: new Date(),
       },
       create: {
@@ -409,6 +414,7 @@ const syncLeetcodeData = async (userId, username) => {
         total_solved: preview.problems_solved,
         contest_rating: preview.contest_rating || 0,
         streak: currentStreak,
+        weekly_progress: { contests_attended: preview.contests_attended || 0, longest_streak: longestStreak },
         updated_at: new Date(),
       },
     });

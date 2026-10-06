@@ -21,7 +21,7 @@ export const Analytics = () => {
   const [overview, setOverview] = useState({ acceptanceRate: 0, contestsEntered: 0, totalSolved: 0, streak: 0, longestStreak: 0 });
   const [syncing, setSyncing] = useState(false);
 
-  const loadData = async () => {
+  const loadData = async (triggerSync = false) => {
     if (!user?.id) return;
     try {
       setLoading(true);
@@ -38,11 +38,19 @@ export const Analytics = () => {
       const dashRes = await apiClient.get('/dashboard/summary').catch(() => null);
       const dashData = dashRes?.data?.data || dashRes?.data || {};
       
-      setOverview({
+      const combinedOverview = {
         ...overviewStats,
-        streak: dashData.streak || 0,
-        longestStreak: dashData.longest_streak || dashData.streak || 0, // Fallback if longest_streak doesn't exist
-      });
+        streak: dashData.streak || overviewStats.currentStreak || 0,
+        longestStreak: dashData.longest_streak || overviewStats.longestStreak || 0,
+      };
+      setOverview(combinedOverview);
+
+      // Auto-sync in background if data looks empty/stale (no solved, no mastery data)
+      if (!triggerSync && (combinedOverview.totalSolved === 0 || mastery.length === 0)) {
+        apiClient.post('/leetcode/sync').then(() => {
+          loadData(true); // reload after sync
+        }).catch(() => {});
+      }
     } catch (err) {
       console.error("Failed to load analytics:", err);
     } finally {
@@ -58,7 +66,7 @@ export const Analytics = () => {
     try {
       setSyncing(true);
       await apiClient.post('/leetcode/sync');
-      await loadData();
+      await loadData(true);
     } catch (err) {
       console.error('Failed to sync LeetCode data:', err);
     } finally {
@@ -101,24 +109,13 @@ export const Analytics = () => {
       </div>
 
       {/* Overview stats */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl">
-          <CardContent className="p-6 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs text-dark-textMuted font-medium uppercase tracking-wider">Acceptance Rate</span>
-              <h3 className="text-2xl font-extrabold text-white">{overview.acceptanceRate}%</h3>
-            </div>
-            <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20">
-              <CheckCircle2 className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-
+      <div className="grid gap-4 sm:grid-cols-2">
         <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl">
           <CardContent className="p-6 flex items-center justify-between">
             <div className="space-y-1">
               <span className="text-xs text-dark-textMuted font-medium uppercase tracking-wider">Total Solved</span>
               <h3 className="text-2xl font-extrabold text-white">{overview.totalSolved}</h3>
+              <p className="text-xs text-dark-textMuted">Across all connected platforms</p>
             </div>
             <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 border border-amber-500/20">
               <Zap className="h-5 w-5" />
@@ -172,74 +169,70 @@ export const Analytics = () => {
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Topic Mastery Radar Chart */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}>
-          <Card className="h-full border-white/5 bg-slate-900/40 backdrop-blur-xl">
-            <CardHeader>
-              <CardTitle>Algorithm Topic Proficiency</CardTitle>
-              <CardDescription>Your mastery score across primary software engineering pillars</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <Shimmer className="h-[300px] w-full" />
-              ) : (
+      {/* Topic Mastery - Radar + Problem Counts */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}>
+        <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl">
+          <CardHeader>
+            <CardTitle>Algorithm Topic Proficiency</CardTitle>
+            <CardDescription>Problems solved per topic across connected platforms (sourced from LeetCode tag data)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <Shimmer className="h-[350px] w-full" />
+            ) : masteryData.length === 0 ? (
+              <div className="h-[200px] flex flex-col items-center justify-center text-center">
+                <p className="text-dark-textMuted text-sm">No topic data yet. Click <span className="text-indigo-400 font-semibold">Sync Now</span> to load your topic breakdown.</p>
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Radar Chart */}
                 <div className="h-[300px] w-full flex items-center justify-center">
                   <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart cx="50%" cy="50%" outerRadius="75%" data={masteryData}>
-                      <PolarGrid stroke="rgba(255,255,255,0.05)" />
+                    <RadarChart cx="50%" cy="50%" outerRadius="70%" data={masteryData}>
+                      <PolarGrid stroke="rgba(255,255,255,0.06)" />
                       <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 11 }} />
                       <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                      <Radar name="Mastery Score" dataKey="A" stroke="#6366f1" fill="#6366f1" fillOpacity={0.25} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }} itemStyle={{ color: '#fff' }} />
+                      <Radar name="Problems Solved (normalized)" dataKey="value" stroke="#6366f1" fill="#6366f1" fillOpacity={0.3} strokeWidth={2} />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const d = payload[0].payload;
+                            return (
+                              <div className="bg-slate-900/95 border border-white/10 px-3 py-2 rounded-xl shadow-xl text-sm">
+                                <p className="font-bold text-white mb-1">{d.subject}</p>
+                                <p className="text-indigo-400">Problems solved: <span className="font-bold">{d.solved}</span></p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
                     </RadarChart>
                   </ResponsiveContainer>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
 
-        {/* Difficulty Distribution Bar Chart */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.2 }}>
-          <Card className="h-full border-white/5 bg-slate-900/40 backdrop-blur-xl">
-            <CardHeader>
-              <CardTitle>Difficulty Breakdown</CardTitle>
-              <CardDescription>Visual distribution of solved algorithmic problems (LeetCode Data)</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <Shimmer className="h-[300px] w-full" />
-              ) : (
-                <div className="h-[300px] w-full flex flex-col justify-center">
-                  <ResponsiveContainer width="100%" height="90%">
-                    <BarChart data={difficultyData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={true} vertical={false} />
-                      <XAxis type="number" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
-                      <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}
-                        itemStyle={{ color: '#fff' }}
-                        cursor={{ fill: 'rgba(255,255,255,0.02)' }}
-                      />
-                      <Bar dataKey="count" radius={[0, 8, 8, 0]} barSize={24}>
-                        {difficultyData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.fill} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                  <div className="flex justify-around text-xs mt-2 text-dark-textMuted pt-4 border-t border-white/5">
-                    <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-emerald-500 mr-2" /> Easy ({difficultyData[0]?.count || 0})</span>
-                    <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-amber-500 mr-2" /> Medium ({difficultyData[1]?.count || 0})</span>
-                    <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-red-500 mr-2" /> Hard ({difficultyData[2]?.count || 0})</span>
-                  </div>
+                {/* Topic Breakdown Table */}
+                <div className="flex flex-col justify-center space-y-2 pr-2">
+                  {[...masteryData].sort((a, b) => b.solved - a.solved).map((topic) => (
+                    <div key={topic.subject} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-300 font-medium truncate">{topic.subject}</span>
+                        <span className="text-indigo-400 font-bold ml-2 shrink-0">{topic.solved} solved</span>
+                      </div>
+                      <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-500"
+                          style={{ width: `${topic.value}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 };
