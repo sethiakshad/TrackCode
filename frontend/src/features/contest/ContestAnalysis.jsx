@@ -16,6 +16,7 @@ export const ContestAnalysis = () => {
   const [ratingGraph, setRatingGraph] = useState([]);
   const [predictions, setPredictions] = useState([]);
   const [selectedPlatform, setSelectedPlatform] = useState('All');
+  const [showAllContests, setShowAllContests] = useState(false);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -231,14 +232,14 @@ export const ContestAnalysis = () => {
           {history.length === 0 ? (
             <p className="text-xs text-dark-textMuted">No recent contests found.</p>
           ) : (
-            history.map((c) => {
+            (showAllContests ? history : history.slice(0, 5)).map((c) => {
               const ratingChange = (c.new_rating !== null && c.old_rating !== null) ? (c.new_rating - c.old_rating) : null;
               return (
               <div key={c.id} className="flex items-center justify-between bg-slate-950/40 p-3.5 rounded-lg border border-white/5">
                 <div className="space-y-0.5">
                   <p className="text-xs font-semibold text-white">{c.contests?.name || 'Unknown Contest'} <span className="text-[10px] text-dark-textMuted font-normal ml-2">({c.contests?.platform || 'Unknown'})</span></p>
                   <p className="text-[10px] text-dark-textMuted">
-                    {new Date(c.date).toLocaleDateString()} • Rank: {c.rank ? `#${c.rank.toLocaleString()}` : 'N/A'} • Solved: {c.solved}
+                    {new Date(c.date).toLocaleDateString()} • Rank: {c.rank ? `#${c.rank.toLocaleString()}` : 'N/A'}{c.solved > 0 ? ` • Solved: ${c.solved}` : ''}
                   </p>
                 </div>
                 {ratingChange !== null && (
@@ -248,6 +249,15 @@ export const ContestAnalysis = () => {
                 )}
               </div>
             )})
+          )}
+          {history.length > 5 && (
+            <Button 
+              variant="outline" 
+              className="w-full mt-2 bg-slate-900 border-white/10 hover:bg-slate-800 text-xs text-white"
+              onClick={() => setShowAllContests(!showAllContests)}
+            >
+              {showAllContests ? 'View Less' : 'View More'}
+            </Button>
           )}
         </CardContent>
       </Card>
