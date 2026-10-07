@@ -174,7 +174,7 @@ export const Analytics = () => {
         <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl">
           <CardHeader>
             <CardTitle>Algorithm Topic Proficiency</CardTitle>
-            <CardDescription>Problems solved per topic across connected platforms (sourced from LeetCode tag data)</CardDescription>
+            <CardDescription>Problems solved per topic across connected platforms (LeetCode & Codeforces)</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (

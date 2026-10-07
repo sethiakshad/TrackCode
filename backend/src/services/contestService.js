@@ -65,22 +65,14 @@ const getContestRating = async (userId) => {
   const history = await prisma.contest_history.findMany({
     where: { user_id: userId },
     orderBy: { date: 'asc' },
-    select: {
-      date: true,
-      old_rating: true,
-      new_rating: true,
-      contests: {
-        select: {
-          name: true,
-          platform: true,
-        },
-      },
+    include: {
+      contests: true,
     },
   });
 
   return history.map(h => ({
-    contestName: h.contests.name,
-    platform: h.contests.platform,
+    contestName: h.contests?.name || 'Unknown Contest',
+    platform: h.contests?.platform || 'Unknown',
     date: (h.date instanceof Date ? h.date : new Date(h.date)).toISOString().split('T')[0],
     rating: h.new_rating || 0,
     ratingChange: (h.new_rating || 0) - (h.old_rating || 0),
@@ -115,23 +107,15 @@ const getSpeedAnalysis = async (userId) => {
   const history = await prisma.contest_history.findMany({
     where: { user_id: userId },
     orderBy: { date: 'asc' },
-    select: {
-      date: true,
-      penalty: true,
-      solved: true,
-      contests: {
-        select: {
-          name: true,
-          duration: true,
-        },
-      },
+    include: {
+      contests: true,
     },
   });
 
   return history.map(h => ({
-    contestName: h.contests.name,
+    contestName: h.contests?.name || 'Unknown Contest',
     solved: h.solved,
-    duration: h.contests.duration || 0,
+    duration: h.contests?.duration || 0,
     timePerProblem: h.solved > 0 ? parseFloat((h.penalty / h.solved).toFixed(2)) : 0,
   }));
 };

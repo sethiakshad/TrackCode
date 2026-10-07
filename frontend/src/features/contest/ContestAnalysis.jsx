@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card';
 import { Shimmer } from '../../components/ui/Shimmer';
 import { Button } from '../../components/ui/Button';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area } from 'recharts';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area, ReferenceDot } from 'recharts';
 import { Award, Trophy, Zap, AlertTriangle, ArrowUpRight, CheckCircle2, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { getContestHistory, getRatingHistory, getContestPredictions } from '../../lib/api/contestApi';
@@ -15,6 +15,7 @@ export const ContestAnalysis = () => {
   const [history, setHistory] = useState([]);
   const [ratingGraph, setRatingGraph] = useState([]);
   const [predictions, setPredictions] = useState([]);
+  const [selectedPlatform, setSelectedPlatform] = useState('All');
 
   useEffect(() => {
     if (!user?.id) return;
@@ -27,9 +28,11 @@ export const ContestAnalysis = () => {
           getContestPredictions(user.id)
         ]);
         
-        setHistory(hist);
-        setRatingGraph(Array.isArray(graph) ? graph : graph?.ratingTrend || []);
-        setPredictions(preds);
+        console.log('Contest Analysis Data:', { hist, graph, preds });
+        
+        setHistory(Array.isArray(hist) ? hist : hist?.data || []);
+        setRatingGraph(Array.isArray(graph) ? graph : graph?.ratingTrend || graph?.data?.ratingTrend || []);
+        setPredictions(Array.isArray(preds) ? preds : preds?.data || []);
       } catch (err) {
         console.error("Failed to load contest data:", err);
       } finally {
@@ -40,6 +43,12 @@ export const ContestAnalysis = () => {
   }, [user?.id]);
 
   const latestPrediction = predictions.length > 0 ? predictions[0] : null;
+
+  const chartData = selectedPlatform === 'All' ? ratingGraph : ratingGraph.filter(d => d.platform === selectedPlatform);
+  let maxRatingPoint = null;
+  if (chartData.length > 0) {
+    maxRatingPoint = chartData.reduce((prev, current) => (prev.rating > current.rating) ? prev : current);
+  }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto text-left">
@@ -138,9 +147,23 @@ export const ContestAnalysis = () => {
 
       {/* Historical Line graph */}
       <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl">
-        <CardHeader>
-          <CardTitle>Rating History & Trends</CardTitle>
-          <CardDescription>Official rating progression from contested events</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Rating History & Trends</CardTitle>
+            <CardDescription>Official rating progression from contested events</CardDescription>
+          </div>
+          {ratingGraph.length > 0 && (
+            <select
+              value={selectedPlatform}
+              onChange={(e) => setSelectedPlatform(e.target.value)}
+              className="bg-slate-950 border border-white/10 text-white text-xs rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            >
+              <option value="All">All Platforms</option>
+              {[...new Set(ratingGraph.map(item => item.platform))].map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          )}
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -152,12 +175,45 @@ export const ContestAnalysis = () => {
           ) : (
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={ratingGraph} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <LineChart 
+                  data={chartData} 
+                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
+                  <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
                   <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} domain={['dataMin - 50', 'dataMax + 50']} />
-                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)' }} />
+                  <Tooltip 
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-slate-900/95 border border-white/10 px-3 py-2 rounded-xl shadow-xl text-sm">
+                            <p className="font-bold text-white mb-1">{data.contestName}</p>
+                            <p className="text-dark-textMuted text-xs mb-2">{label}</p>
+                            <p className="text-indigo-400">Rating: <span className="font-bold">{data.rating}</span></p>
+                            {data.ratingChange !== 0 && (
+                              <p className={data.ratingChange > 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                {data.ratingChange > 0 ? '+' : ''}{data.ratingChange}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
                   <Line type="monotone" dataKey="rating" stroke="#6366f1" strokeWidth={3} dot={{ stroke: '#6366f1', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
+                  {maxRatingPoint && (
+                    <ReferenceDot 
+                      x={maxRatingPoint.date} 
+                      y={maxRatingPoint.rating} 
+                      r={6} 
+                      fill="#f59e0b" 
+                      stroke="#fff" 
+                      strokeWidth={2} 
+                      label={{ position: 'top', value: 'Highest', fill: '#f59e0b', fontSize: 12, fontWeight: 'bold' }} 
+                    />
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             </div>

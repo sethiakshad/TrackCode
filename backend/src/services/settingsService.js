@@ -108,6 +108,7 @@ const syncCodeforcesSubmissions = async (userId, username) => {
     if (res.data && res.data.status === 'OK' && Array.isArray(res.data.result)) {
       const solvedByDate = {};
       const seenProblems = new Set();
+      const topicCounts = {};
 
       for (const sub of res.data.result) {
         if (sub.verdict === 'OK' && sub.problem && sub.creationTimeSeconds) {
@@ -116,6 +117,15 @@ const syncCodeforcesSubmissions = async (userId, username) => {
             seenProblems.add(probKey);
             const dateStr = new Date(sub.creationTimeSeconds * 1000).toISOString().split('T')[0];
             solvedByDate[dateStr] = (solvedByDate[dateStr] || 0) + 1;
+            
+            // Collect tags for topic mastery
+            if (sub.problem.tags && Array.isArray(sub.problem.tags)) {
+              sub.problem.tags.forEach(tag => {
+                // capitalize first letter of each word to match some Leetcode format
+                const formattedTag = tag.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                topicCounts[formattedTag] = (topicCounts[formattedTag] || 0) + 1;
+              });
+            }
           }
         }
       }
@@ -142,6 +152,70 @@ const syncCodeforcesSubmissions = async (userId, username) => {
           },
         });
       }
+
+      // Upsert topic mastery
+      for (const [topic, count] of Object.entries(topicCounts)) {
+        await prisma.topic_mastery.upsert({
+          where: {
+            user_id_topic: {
+              user_id: userId,
+              topic: topic,
+            },
+          },
+          update: {
+            solved: { increment: count },
+          },
+          create: {
+            user_id: userId,
+            topic: topic,
+            solved: count,
+          },
+        });
+      }
+      // Sync Codeforces rating history (Contests)
+      const ratingRes = await axios.get(`https://codeforces.com/api/user.rating?handle=${encodeURIComponent(username)}`, {
+        timeout: 10000,
+      });
+
+      if (ratingRes.data && ratingRes.data.status === 'OK' && Array.isArray(ratingRes.data.result)) {
+        for (const h of ratingRes.data.result) {
+          const externalId = 'CF-' + h.contestId;
+          const contest = await prisma.contests.upsert({
+            where: { external_id: externalId },
+            update: { name: h.contestName },
+            create: {
+               external_id: externalId,
+               name: h.contestName,
+               platform: 'codeforces',
+               start_time: new Date(h.ratingUpdateTimeSeconds * 1000),
+               duration: 7200,
+            }
+          });
+
+          await prisma.contest_history.upsert({
+            where: {
+               contest_id_user_id: { contest_id: contest.id, user_id: userId }
+            },
+            update: {
+               old_rating: h.oldRating,
+               new_rating: h.newRating,
+               rank: h.rank,
+               date: new Date(h.ratingUpdateTimeSeconds * 1000)
+            },
+            create: {
+               contest_id: contest.id,
+               user_id: userId,
+               old_rating: h.oldRating,
+               new_rating: h.newRating,
+               rank: h.rank,
+               date: new Date(h.ratingUpdateTimeSeconds * 1000),
+               solved: 0,
+               penalty: 0
+            }
+          });
+        }
+      }
+
     }
   } catch (err) {
     console.warn('[CODEFORCES SYNC WARN]', err.message);
@@ -217,6 +291,69 @@ const connectAccount = async (userId, platform, profileData) => {
     const error = new Error('Invalid platform specified or platform requires dedicated service (e.g., github, leetcode)');
     error.statusCode = 400;
     throw error;
+  }
+};
+
+const syncLeetCodeContestHistory = async (userId, username) => {
+  try {
+    const query = `
+      query userContestRankingHistory($username: String!) {
+        userContestRankingHistory(username: $username) {
+          attended
+          rating
+          ranking
+          contest {
+            title
+            startTime
+          }
+        }
+      }
+    `;
+    const response = await axios.post('https://leetcode.com/graphql', { query, variables: { username } });
+    if (!response.data.data || !response.data.data.userContestRankingHistory) return;
+    
+    const history = response.data.data.userContestRankingHistory.filter(x => x.attended);
+    let oldRating = 1500;
+    
+    for (const h of history) {
+      const externalId = 'LC-' + h.contest.title;
+      let contest = await prisma.contests.findFirst({ where: { name: h.contest.title } });
+      if (!contest) {
+         contest = await prisma.contests.create({
+           data: {
+             name: h.contest.title,
+             platform: 'leetcode',
+             start_time: new Date(h.contest.startTime * 1000),
+             duration: 5400,
+           }
+         });
+      }
+
+      await prisma.contest_history.upsert({
+        where: {
+           contest_id_user_id: { contest_id: contest.id, user_id: userId }
+        },
+        update: {
+           old_rating: oldRating,
+           new_rating: Math.round(h.rating),
+           rank: h.ranking,
+           date: new Date(h.contest.startTime * 1000)
+        },
+        create: {
+           contest_id: contest.id,
+           user_id: userId,
+           old_rating: oldRating,
+           new_rating: Math.round(h.rating),
+           rank: h.ranking,
+           date: new Date(h.contest.startTime * 1000),
+           solved: 0,
+           penalty: 0
+        }
+      });
+      oldRating = Math.round(h.rating);
+    }
+  } catch (err) {
+    console.error('[LeetCode Contest Sync]', err.message);
   }
 };
 
