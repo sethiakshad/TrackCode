@@ -1,9 +1,17 @@
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
 /**
  * AI Provider / Client abstraction wrapper.
- * Abstracting external AI API integrations (Gemini, OpenAI, etc.)
- * so changes to models or providers require minimal adjustments here.
+ * Integrates with Google Gemini API to generate insights.
  */
 class AIProvider {
+  constructor() {
+    this.apiKey = process.env.GEMINI_API_KEY || '';
+    if (this.apiKey) {
+      this.genAI = new GoogleGenerativeAI(this.apiKey);
+      this.model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    }
+  }
   /**
    * Generates a weekly progress analysis report.
    * @param {Object} userData - User progress metrics.
@@ -74,8 +82,23 @@ class AIProvider {
    * @returns {Promise<string>} Agent response string.
    */
   async generateChatMessage(chatHistory, prompt) {
-    // Simple placeholder chatbot response.
-    return `This is a simulated AI assistant response. You asked: "${prompt}". In the future, this prompt is sent to the configured LLM API.`;
+    if (!this.model) {
+      return `This is a simulated AI assistant response. You asked: "${prompt}". Please configure GEMINI_API_KEY in your .env file to enable the AI Coach.`;
+    }
+
+    try {
+      const fullPrompt = `You are a helpful and expert AI coding coach.
+Here is the conversation history:
+${chatHistory}
+
+User: ${prompt}
+AI Coach:`;
+      const result = await this.model.generateContent(fullPrompt);
+      return result.response.text();
+    } catch (error) {
+      console.error("Gemini API Error in generateChatMessage:", error);
+      return "I'm having trouble connecting to my brain right now. Please try again later.";
+    }
   }
 
   /**
@@ -84,7 +107,26 @@ class AIProvider {
    * @returns {Promise<string>} Summary text response.
    */
   async generateSummary(statsData) {
-    return `AI Summary: You solved ${statsData.totalSolved || 0} total problems with a streak of ${statsData.streak || 0} days. Your active focus area remains ${statsData.focusArea || 'General Algorithms'}.`;
+    if (!this.model) {
+      return `AI Summary: You solved ${statsData.totalSolved || 0} total problems with a streak of ${statsData.streak || 0} days. Your active focus area remains ${statsData.focusArea || 'General Algorithms'}. (Configure GEMINI_API_KEY for personalized feedback)`;
+    }
+
+    try {
+      const prompt = `You are an encouraging and expert AI coding coach. 
+Analyze the following user analytics JSON and provide a short, motivating, 2-3 sentence summary of their progress. 
+Highlight their streak or total solved if impressive, and suggest what they should focus on next based on their focus area.
+
+User Analytics JSON:
+${JSON.stringify(statsData, null, 2)}
+
+Provide only the summary text, no formatting or markdown.`;
+
+      const result = await this.model.generateContent(prompt);
+      return result.response.text();
+    } catch (error) {
+      console.error("Gemini API Error in generateSummary:", error);
+      return `You're making great progress! You solved ${statsData.totalSolved || 0} total problems. Keep consistency by solving at least 1 medium problem every day.`;
+    }
   }
 }
 

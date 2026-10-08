@@ -282,25 +282,37 @@ const getConversationHistory = async (userId, conversationId) => {
  * AI Summary APIs
  */
 const getAISummary = async (userId) => {
-  // Fetch summary inputs
-  const leetcode = await prisma.leetcode_profiles.findUnique({
-    where: { user_id: userId },
-  });
+  // Fetch summary inputs (Analytics Service layer)
+  const [leetcode, github, codeforces, dashboard, masteries] = await Promise.all([
+    prisma.leetcode_profiles.findUnique({ where: { user_id: userId } }),
+    prisma.github_profiles.findUnique({ where: { user_id: userId } }),
+    prisma.codeforces_profiles.findUnique({ where: { user_id: userId } }),
+    prisma.dashboard_summary.findUnique({ where: { user_id: userId } }),
+    prisma.topic_mastery.findMany({ where: { user_id: userId }, orderBy: { mastery_score: 'desc' }, take: 3 })
+  ]);
 
-  const dashboard = await prisma.dashboard_summary.findUnique({
-    where: { user_id: userId },
-  });
-
-  const totalSolved = leetcode?.problems_solved || 0;
+  const totalSolved = (leetcode?.problems_solved || 0) + (codeforces?.problems_solved || 0);
   const streak = dashboard?.streak || 0;
+  
+  // Format User Analytics JSON
+  const analyticsJSON = {
+    platforms: {
+      leetcode: { solved: leetcode?.problems_solved || 0, ranking: leetcode?.ranking },
+      github: { score: dashboard?.github_score || 0, commits: github?.total_commits || 0 },
+      codeforces: { rating: codeforces?.contest_rating || 0, maxRating: codeforces?.max_rating || 0 }
+    },
+    activity: {
+      totalSolved,
+      currentStreak: streak,
+      weeklyProgress: dashboard?.weekly_progress || {}
+    },
+    topStrengths: masteries.map(m => m.topic)
+  };
 
-  const summary = await aiProvider.generateSummary({
-    totalSolved,
-    streak,
-    focusArea: 'Graph traversal and Tree validation',
-  });
+  // Pass JSON to Gemini API
+  const summary = await aiProvider.generateSummary(analyticsJSON);
 
-  return { summary };
+  return { summary }; // Note: Dashboard expects the summary text directly inside data.summary
 };
 
 module.exports = {

@@ -6,6 +6,10 @@ const aiController = require('../controllers/aiController');
 // All AI endpoints require authentication
 router.use(authenticate);
 
+// AI Feedback Summary (for AI Coach / Dashboard)
+router.get('/summary', aiController.getAISummary);
+
+
 // Reports
 router.post('/report', aiController.generateWeeklyReport);
 router.get('/reports', aiController.getWeeklyReports);
