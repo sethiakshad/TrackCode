@@ -28,7 +28,6 @@ export const CodeforcesProvider = ({ children }) => {
       setIsLoading(true);
       setError(null);
       try {
-        // Load from DB only — fast and reliable, no live CF API call
         const data = await getCodeforcesProfile(user.id);
         setProfile(data || null);
       } catch (err) {

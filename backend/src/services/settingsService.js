@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const axios = require('axios');
 
 /**
  * Retrieve user settings and connected accounts status.
@@ -130,28 +131,7 @@ const syncCodeforcesSubmissions = async (userId, username) => {
         }
       }
 
-      for (const [dateStr, count] of Object.entries(solvedByDate)) {
-        await prisma.daily_stats.upsert({
-          where: {
-            user_id_date: {
-              user_id: userId,
-              date: new Date(dateStr),
-            },
-          },
-          update: {
-            problems_solved: { increment: count },
-          },
-          create: {
-            user_id: userId,
-            date: new Date(dateStr),
-            problems_solved: count,
-            commits: 0,
-            contests_played: 0,
-            xp_earned: count * 10,
-            study_minutes: count * 15,
-          },
-        });
-      }
+
 
       // Upsert topic mastery
       for (const [topic, count] of Object.entries(topicCounts)) {
@@ -179,18 +159,17 @@ const syncCodeforcesSubmissions = async (userId, username) => {
 
       if (ratingRes.data && ratingRes.data.status === 'OK' && Array.isArray(ratingRes.data.result)) {
         for (const h of ratingRes.data.result) {
-          const externalId = 'CF-' + h.contestId;
-          const contest = await prisma.contests.upsert({
-            where: { external_id: externalId },
-            update: { name: h.contestName },
-            create: {
-               external_id: externalId,
-               name: h.contestName,
-               platform: 'codeforces',
-               start_time: new Date(h.ratingUpdateTimeSeconds * 1000),
-               duration: 7200,
-            }
-          });
+          let contest = await prisma.contests.findFirst({ where: { name: h.contestName } });
+          if (!contest) {
+            contest = await prisma.contests.create({
+              data: {
+                name: h.contestName,
+                platform: 'codeforces',
+                start_time: new Date(h.ratingUpdateTimeSeconds * 1000),
+                duration: 7200,
+              }
+            });
+          }
 
           await prisma.contest_history.upsert({
             where: {
@@ -215,6 +194,16 @@ const syncCodeforcesSubmissions = async (userId, username) => {
           });
         }
       }
+      
+      // Save CF timeline to dashboard_summary for frontend graph merging
+      const existing = await prisma.dashboard_summary.findUnique({ where: { user_id: userId } });
+      const existingProgress = (existing?.weekly_progress && typeof existing.weekly_progress === 'object')
+        ? existing.weekly_progress : {};
+      await prisma.dashboard_summary.upsert({
+        where: { user_id: userId },
+        update: { weekly_progress: { ...existingProgress, cf_timeline: solvedByDate } },
+        create: { user_id: userId, weekly_progress: { cf_timeline: solvedByDate }, streak: 0 }
+      });
 
     }
   } catch (err) {
@@ -357,9 +346,39 @@ const syncLeetCodeContestHistory = async (userId, username) => {
   }
 };
 
+const syncAllData = async (userId) => {
+  const { connectedAccounts } = await getSettings(userId);
+  const promises = [];
+  
+  if (connectedAccounts.leetcode) {
+    const leetcodeService = require('./leetcodeService');
+    promises.push(leetcodeService.syncLeetcodeData(userId));
+    promises.push(syncLeetCodeContestHistory(userId, connectedAccounts.leetcode.username));
+  }
+  
+  if (connectedAccounts.codeforces) {
+    promises.push(syncCodeforcesSubmissions(userId, connectedAccounts.codeforces.username));
+  }
+  
+  if (connectedAccounts.github) {
+    const githubService = require('./githubService');
+    promises.push(githubService.syncUserRepositories(userId));
+  }
+
+  const results = await Promise.allSettled(promises);
+  const failed = results.filter(r => r.status === 'rejected');
+  if (failed.length > 0) {
+    console.error('Some sync operations failed:', failed.map(f => f.reason));
+  }
+
+  return { syncedAt: new Date(), status: 'success' };
+};
+
 module.exports = {
   getSettings,
   updateSettings,
   disconnectAccount,
   connectAccount,
+  syncAllData,
+  syncCodeforcesSubmissions,
 };

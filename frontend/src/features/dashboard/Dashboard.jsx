@@ -156,16 +156,17 @@ export const Dashboard = () => {
         const mergeTimelines = (baseData) => {
           if (!baseData || !Array.isArray(baseData)) return [];
           const merged = baseData.map(r => ({ ...r }));
-          if (isConnectedCodeforces && cfProfile?.timeline) {
+          const timelineToUse = cfProfile?.timeline || summary?.weekly_progress?.cf_timeline;
+          if (isConnectedCodeforces && timelineToUse) {
             merged.forEach(row => {
               let add = 0;
-              if (row.date && cfProfile.timeline[row.date]) {
-                add += cfProfile.timeline[row.date];
+              if (row.date && timelineToUse[row.date]) {
+                add += timelineToUse[row.date];
               } else if (row.month_start) {
                 const md = new Date(row.month_start);
                 const prefix = `${md.getFullYear()}-${String(md.getMonth() + 1).padStart(2, '0')}-`;
-                Object.keys(cfProfile.timeline).forEach(k => {
-                  if (k.startsWith(prefix)) add += cfProfile.timeline[k];
+                Object.keys(timelineToUse).forEach(k => {
+                  if (k.startsWith(prefix)) add += timelineToUse[k];
                 });
               }
               row.solved = (row.solved || 0) + add;
@@ -226,16 +227,17 @@ export const Dashboard = () => {
         const mergeTimelines = (baseData) => {
           if (!baseData) return [];
           const merged = [...baseData];
-          if (isConnectedCodeforces && cfProfile?.timeline) {
+          const timelineToUse = cfProfile?.timeline || dbSummary?.weekly_progress?.cf_timeline;
+          if (isConnectedCodeforces && timelineToUse) {
             merged.forEach(row => {
               let add = 0;
-              if (row.date && cfProfile.timeline[row.date]) {
-                add += cfProfile.timeline[row.date];
+              if (row.date && timelineToUse[row.date]) {
+                add += timelineToUse[row.date];
               } else if (row.month_start) {
                 const md = new Date(row.month_start);
                 const prefix = `${md.getFullYear()}-${String(md.getMonth() + 1).padStart(2, '0')}-`;
-                Object.keys(cfProfile.timeline).forEach(k => {
-                  if (k.startsWith(prefix)) add += cfProfile.timeline[k];
+                Object.keys(timelineToUse).forEach(k => {
+                  if (k.startsWith(prefix)) add += timelineToUse[k];
                 });
               }
               row.solved = (row.solved || 0) + add;

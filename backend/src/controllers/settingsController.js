@@ -63,6 +63,19 @@ const disconnectAccount = async (req, res, next) => {
   }
 };
 
+const syncAllData = async (req, res, next) => {
+  try {
+    const result = await settingsService.syncAllData(req.userId);
+    res.json({
+      status: 'success',
+      message: 'All connected accounts synced successfully',
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const connectAccount = async (req, res, next) => {
   try {
     const { platform } = req.params;
@@ -91,4 +104,5 @@ module.exports = {
   updateSettings,
   disconnectAccount,
   connectAccount,
+  syncAllData,
 };

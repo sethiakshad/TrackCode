@@ -10,5 +10,6 @@ router.get('/', settingsController.getSettings);
 router.patch('/', settingsController.updateSettings);
 router.post('/accounts/:platform', settingsController.connectAccount);
 router.delete('/accounts/:platform', settingsController.disconnectAccount);
+router.post('/sync-all', settingsController.syncAllData);
 
 module.exports = router;

@@ -5,7 +5,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import { syncLeetCodeData } from '../../services/leetcodeService';
+import apiClient from '../../lib/axios';
 
 export const Navbar = ({ onMenuClick }) => {
   const { user, logout } = useAuth();
@@ -29,7 +29,7 @@ export const Navbar = ({ onMenuClick }) => {
   const handleSync = async () => {
     try {
       setIsSyncing(true);
-      await syncLeetCodeData();
+      await apiClient.post('/settings/sync-all');
       window.location.reload();
     } catch (err) {
       console.error('Sync failed:', err);
