@@ -60,7 +60,7 @@ export const AICoach = () => {
     // Call the actual AI chat API
     sendChatMessage(text).then((res) => {
       setIsTyping(false);
-      const responseText = res?.data?.response || res?.data?.message || "I'm having trouble analyzing that right now.";
+      const responseText = res?.systemMessage?.message || res?.data?.response || res?.data?.message || "I'm having trouble analyzing that right now.";
       setMessages(prev => [...prev, { role: 'assistant', content: responseText }]);
     }).catch((err) => {
       setIsTyping(false);
