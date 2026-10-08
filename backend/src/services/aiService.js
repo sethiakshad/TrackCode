@@ -216,8 +216,35 @@ const sendMessage = async (userId, conversationId, messageContent) => {
     },
   });
 
+  // 3.5 Fetch real user data for context
+  const [leetcode, github, codeforces, dashboard, masteries] = await Promise.all([
+    prisma.leetcode_profiles.findUnique({ where: { user_id: userId } }),
+    prisma.github_profiles.findUnique({ where: { user_id: userId } }),
+    prisma.codeforces_profiles.findUnique({ where: { user_id: userId } }),
+    prisma.dashboard_summary.findUnique({ where: { user_id: userId } }),
+    prisma.topic_mastery.findMany({ where: { user_id: userId }, orderBy: { mastery_score: 'desc' } })
+  ]);
+
+  const totalSolved = (leetcode?.problems_solved || 0) + (codeforces?.problems_solved || 0);
+  const analyticsJSON = {
+    profile: {
+      totalSolved,
+      currentStreak: dashboard?.streak || 0,
+      weeklyProgress: dashboard?.weekly_progress || {}
+    },
+    leetcode: { solved: leetcode?.problems_solved || 0, ranking: leetcode?.ranking },
+    github: { score: dashboard?.github_score || 0, commits: github?.total_commits || 0 },
+    codeforces: { rating: codeforces?.contest_rating || 0, maxRating: codeforces?.max_rating || 0 },
+    analytics: {
+      topics: masteries.reduce((acc, m) => {
+        acc[m.topic] = { solved: m.problems_solved, proficiency: m.mastery_score };
+        return acc;
+      }, {})
+    }
+  };
+
   // 4. Generate chatbot response from AI provider
-  const responseStr = await aiProvider.generateChatMessage(contextStr, messageContent);
+  const responseStr = await aiProvider.generateChatMessage(contextStr, messageContent, analyticsJSON);
 
   // 5. Save System / Assistant message response
   // We use the application's predefined system or user profile setup.

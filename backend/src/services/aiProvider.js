@@ -81,13 +81,32 @@ class AIProvider {
    * @param {string} prompt - Current user message.
    * @returns {Promise<string>} Agent response string.
    */
-  async generateChatMessage(chatHistory, prompt) {
+  async generateChatMessage(chatHistory, prompt, userData = {}) {
     if (!this.model) {
       return `This is a simulated AI assistant response. You asked: "${prompt}". Please configure GEMINI_API_KEY in your .env file to enable the AI Coach.`;
     }
 
     try {
-      const fullPrompt = `You are a helpful and expert AI coding coach.
+      const fullPrompt = `You are TrackCode AI Coach.
+
+You are given verified analytics belonging to the currently authenticated TrackCode user.
+
+USER DATA:
+${JSON.stringify(userData, null, 2)}
+
+Use this data to answer the user's question.
+
+IMPORTANT RULES:
+- Use the provided user data.
+- Do not invent statistics.
+- Do not ask the user to provide data that is already available.
+- Do not confuse this user's data with another user.
+- If a metric is unavailable, explicitly say that it is unavailable.
+- Base conclusions on actual statistics.
+- Explain the reasoning behind your conclusions.
+- Give actionable coaching.
+- Do not recommend individual coding problems.
+
 Here is the conversation history:
 ${chatHistory}
 
@@ -97,7 +116,7 @@ AI Coach:`;
       return result.response.text();
     } catch (error) {
       console.error("Gemini API Error in generateChatMessage:", error);
-      return "I'm having trouble connecting to my brain right now. Please try again later.";
+      return `I'm having trouble connecting to my brain right now. Please try again later. Error: ${error.message}`;
     }
   }
 
